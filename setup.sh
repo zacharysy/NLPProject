@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 
 # Constants
-VENVNAME="nlp_venv"
+VENVNAME=".nlp_venv"
 
 # Create virtual environment
 python -m venv $VENVNAME
