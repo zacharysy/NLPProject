@@ -54,8 +54,7 @@ def scrape_book_link(book_url: str):
     if not read_online_url:
         return
 
-    text_name = soup.find('h1', {'itemprop': 'name'}).text
-    scrape_text(text_name, base_url + read_online_url)
+    scrape_text(base_url + read_online_url)
 
 
 def scrape_page(idx: int, book_titles: set):
@@ -75,7 +74,6 @@ def scrape_page(idx: int, book_titles: set):
 
 def driver_scrape(max_pages, n_threads):
     page_indices = [i for i in range(1, (max_pages*25)+1, 25)]
-    open('novels.txt', 'a+').close()
     book_titles = set()
     partial_scrape_page = partial(scrape_page, book_titles=book_titles)
 
