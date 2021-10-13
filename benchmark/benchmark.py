@@ -1,17 +1,18 @@
 from __future__ import annotations
 from collections import defaultdict
 from pprint import pprint
-import json, os, tqdm
+import json, os, tqdm, sys
 
 import textworld
 from textworld.generator.game import GameOptions
 from textworld.generator import compile_game
 
-from ExampleAgent import CustomAgent
+sys.path.append("./")
+from baseline.src.ExampleAgent import CustomAgent
 
 class Benchmark:
     def __init__(self):
-        self.games_root = "./benchmark_games"
+        self.games_root = "./benchmark/benchmark_games"
         self.levels = 30
         self.trials = 100
         self.max_moves = 1000
@@ -132,5 +133,5 @@ if __name__ == "__main__":
     agent = CustomAgent()
     benchmark = Benchmark()
     #benchmark.createGame(1)
-    # benchmark.registerGames("./benchmark_games")
+    benchmark.registerGames()
     benchmark.runBenchmark(agent)
