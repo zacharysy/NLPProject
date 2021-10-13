@@ -115,12 +115,18 @@ class Benchmark:
         game_state = env.reset()
         reward, done, moves = 0, False, 0
 
-        while not done and moves <= max_moves:
+        while not done and moves < max_moves:
             command = agent.act(game_state, reward, done)
             game_state, reward, done = env.step(command)
             moves += 1
 
-        return game_state.score, moves
+        score = game_state.score
+
+        # If it finishes with a score of 0, that means the agent picked up the wrong item so make score negative
+        if done and score == 0:
+            score = -1
+
+        return score, moves
 
 if __name__ == "__main__":
     agent = CustomAgent()
@@ -128,6 +134,3 @@ if __name__ == "__main__":
     #benchmark.createGame(1)
     # benchmark.registerGames("./benchmark_games")
     benchmark.runBenchmark(agent)
-
-
-
