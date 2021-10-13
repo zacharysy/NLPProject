@@ -5,3 +5,4 @@ tmp/
 .nlp_venv/
 */games/*
 */__pycache__/*
+novels.txt
