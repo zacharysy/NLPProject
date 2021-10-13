@@ -105,10 +105,10 @@ class Benchmark:
                 results[level]["average_moves"] += moves
 
             results[level]["average_score"] /= trials
-            results[level]["average_score"] /= trials
+            results[level]["average_moves"] /= trials
 
         print()
-        pprint(average_scores)
+        pprint(results)
 
     def runGame(self, agent: textworld.Agent, game_path: str, max_moves: int) -> (int,int):
         env = textworld.start(game_path)
