@@ -30,5 +30,9 @@ Step Breakdown:
 * Zachary Sy: 5 and 6
 
 ### How To Run
+- Note: Run all commands from the root folder
 - Install dependencies using `setup.sh`
-- (TODO)
+- To generate games used for the benchmark:
+    - `python3 benchmark/benchmark.py --generate`
+- To run the benchmark on the baseline:
+    - `python3 benchmark/benchmark.py --actor baseline`

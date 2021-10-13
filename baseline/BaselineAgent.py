@@ -2,24 +2,28 @@
 # Licensed under the MIT license.
 
 
-import random
+import random, re, sys, pprint
 
 import textworld
 import textworld.challenges
 from textworld.generator.game import GameOptions
 import textworld.generator
 
-from nounverb import NounVerb
+sys.path.append("./")
+from baseline.nounverb import NounVerb
 
 class BaselineAgent(textworld.Agent):
     def __init__(self):
-        self.model = NounVerb(data: [("a", "b")])
+        self.model = NounVerb(data=[("a", "b")])
 
     def get_nouns(self, text):
-        pass
+        print(text)
+        print()
+        lines = re.split(r'(?:(?<=[.!?])|(?<=[.!?]["”]))\s+', text)
+        pprint.pprint(lines)
 
     def act(self, game_state, reward, done):
-        nouns = get_nouns(game_state.feedback)
+        nouns = self.get_nouns(game_state.feedback)
         noun = random.choice(nouns)
         verb = self.model(noun)
 
