@@ -3,3 +3,4 @@
 *.log
 tmp/
 .nlp_venv/
+benchmark_games/*
