@@ -4,3 +4,4 @@
 tmp/
 .nlp_venv/
 */games/*
+*/__pycache__/*
