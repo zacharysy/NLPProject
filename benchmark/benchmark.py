@@ -12,7 +12,7 @@ from baseline.src.ExampleAgent import CustomAgent
 
 class Benchmark:
     def __init__(self):
-        self.games_root = "./benchmark/benchmark_games"
+        self.games_root = "./benchmark/games"
         self.levels = 30
         self.trials = 100
         self.max_moves = 1000
