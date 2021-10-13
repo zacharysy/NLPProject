@@ -6,6 +6,7 @@ import argparse
 import bs4
 import requests
 import re
+from requests.models import HTTPError
 import tqdm
 from functools import partial
 from multiprocessing.pool import ThreadPool
@@ -25,10 +26,13 @@ def get_soup_content(url: str):
     """
     Util for getting soup content from url.
     """
-    request = requests.get(url, headers)
-    content = request.content.decode('utf-8')
-    soup = bs4.BeautifulSoup(content, features="html.parser")
-    return soup
+    try:
+        request = requests.get(url, headers)
+        content = request.content.decode('utf-8')
+        soup = bs4.BeautifulSoup(content, features="html.parser")
+        return soup
+    except (UnicodeDecodeError, HTTPError, ConnectionError, TimeoutError, ConnectionResetError):
+        return None
 
 
 def scrape_text(read_online_url: str):
@@ -38,12 +42,16 @@ def scrape_text(read_online_url: str):
     to a file line-by-line.
     """
     soup = get_soup_content(read_online_url)
+    if not soup:
+        return
+
     blocks = map(lambda fragment: fragment.get_text(
         strip=True).lower(), soup.find_all('p', class_=''))
     for block in blocks:
         # Split lines by ., ?, !, and any of the previous followed by a quote.
         lines = re.split(r'(?:(?<=[.!?])|(?<=[.!?]["”]))\s+', block)
         for line in lines:
+            line = re.sub(r'\[[0-9]*\]', '', string=line)
             with open('novels.txt', 'a+') as file:
                 file.write(f"{line}\n")
 
@@ -54,6 +62,9 @@ def scrape_book_link(book_url: str):
     Reject if the novel isn't in English or it's not readable online.
     """
     soup = get_soup_content(book_url)
+    if not soup:
+        return
+
     bibrec = soup.find('table', class_='bibrec')
     language = bibrec.find(
         'tr', {'property': 'dcterms:language'}).find('td').text
@@ -77,6 +88,9 @@ def scrape_page(idx: int, book_titles: set):
     idx_url = base_url + f"/ebooks/subject/138?start_index={idx}"
     soup = get_soup_content(idx_url)
 
+    if not soup:
+        return
+
     book_links = soup.find_all('li', class_='booklink')
 
     for book_link in tqdm.tqdm(book_links):
@@ -93,7 +107,7 @@ def driver_scrape(pages, n_threads):
     """
     Main driver function for scraping pages in parallel.
     """
-    page_indices = [i for i in range(1, (pages*25)+1, 25)]
+    page_indices = [i for i in range(1, (pages*25), 25)]
     book_titles = set()
     partial_scrape_page = partial(scrape_page, book_titles=book_titles)
 
@@ -109,7 +123,7 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(
         description='Scrape from Project Gutenberg')
     parser.add_argument('--threads', type=int,
-                        help='Number of threads to scrape with')
+                        help='Number of threads to scrape with, must be less than or equal to #pages to scrape')
     parser.add_argument('--pages', type=int,
                         help='Number of pages of the top fantasy novels to scrape (each page has 25 novels), max 325')
     args = parser.parse_args()
