@@ -8,7 +8,7 @@ from textworld.generator.game import GameOptions
 from textworld.generator import compile_game
 
 sys.path.append("./")
-from baseline.src.ExampleAgent import CustomAgent
+from baseline.ExampleAgent import CustomAgent
 
 class Benchmark:
     def __init__(self):
@@ -31,7 +31,8 @@ class Benchmark:
     # Creates trial number of games for each level
     def generateGames(self,
                     levels: Optional(int) = None,
-                    trials: Optional(int) = None):
+                    trials: Optional(int) = None
+                ):
         levels = levels or self.levels
         trials = trials or self.trials
 
@@ -51,12 +52,20 @@ class Benchmark:
     # Create a JSON file to list out all the available games in the given folder path
     def registerGames(self, folder_path: Optional(str) = None):
         folder_path = folder_path or self.games_root
+
+        '''
+        {
+            level : {
+                trial: path
+            }
+        }
+        '''
         game_directory = defaultdict(dict)
 
         with os.scandir(folder_path) as levels:
             for level in filter(lambda x: os.path.isdir(x), levels):
                 with os.scandir(level) as trials:
-                    for trial in trials:
+                    for trial in filter(lambda x: os.path.isdir(x), trials):
                         with os.scandir(trial) as games:
                             game = list(filter(lambda x: x.path.endswith(".ulx"), games))[0]
                             game_directory[level.name][trial.name] = game.path
@@ -64,6 +73,7 @@ class Benchmark:
         with open(os.path.join(folder_path, "games.json"), "w") as file:
             file.write(json.dumps(game_directory))
 
+    # Run the benchmark up to the given `levels` and `trials` number of trials with at most `max_moves` number of moves per game
     def runBenchmark(self,
                     agent: textworld.Agent,
                     directory_path: Optional(str) = None,
@@ -111,6 +121,7 @@ class Benchmark:
         print()
         pprint(results)
 
+    # run a single game
     def runGame(self, agent: textworld.Agent, game_path: str, max_moves: int) -> (int,int):
         env = textworld.start(game_path)
         game_state = env.reset()
@@ -132,6 +143,5 @@ class Benchmark:
 if __name__ == "__main__":
     agent = CustomAgent()
     benchmark = Benchmark()
-    #benchmark.createGame(1)
     benchmark.registerGames()
     benchmark.runBenchmark(agent)
