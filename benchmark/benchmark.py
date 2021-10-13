@@ -9,6 +9,9 @@ from textworld.generator import compile_game
 
 sys.path.append("./")
 from baseline.ExampleAgent import CustomAgent
+from baseline.BaselineAgent import BaselineAgent
+
+import argparse
 
 class Benchmark:
     def __init__(self):
@@ -39,13 +42,11 @@ class Benchmark:
 
         for i in range(levels):
             level = i+1
-            game_directory[level] = {}
 
             for j in range(trials):
                 trial = j + 1
 
                 game = self.createGame(level, trial)
-                game_directory[level][trial] = game
 
                 print(f"Level {level} Trial {trial} created", end="\r")
 
@@ -140,8 +141,29 @@ class Benchmark:
 
         return score, moves
 
-if __name__ == "__main__":
-    agent = CustomAgent()
+def main(args):
     benchmark = Benchmark()
+
+    if args.generate:
+        benchmark.generateGames()
+        benchmark.registerGames()
+        return 1
+
+    if args.actor == "baseline":
+        agent = BaselineAgent()
+    else:
+        print("Agent not recognized")
+        return 0
+
     benchmark.registerGames()
     benchmark.runBenchmark(agent)
+    return 1
+
+if __name__ == "__main__":
+    parser = argparse.ArgumentParser(description="Run Benchmarks")
+    parser.add_argument("--generate", action="store_true", help="Create the benchmark games")
+    parser.add_argument("--actor", choices=["baseline"], help="Possible values: baseline")
+
+    args = parser.parse_args()
+    main(args)
+
