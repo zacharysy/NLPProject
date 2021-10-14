@@ -3,6 +3,7 @@ This file contains miscellaneous utility functions used in various
 parts of the design process.
 """
 
+from __future__ import annotations
 import spacy
 
 
@@ -11,7 +12,7 @@ SPACY_MODELNAME = 'en_core_web_trf'
 VALID_VERB_POS = ['VERB']
 VALID_NOUN_POS = ['NOUN', 'PROPN']
 VALID_VERB_DEP = ['ROOT']
-VALID_NOUN_DEP = ['dobj', 'npadvmod']
+VALID_NOUN_DEP = ['dobj', 'pobj', 'npadvmod']
 
 # Globals
 SPACY_MODEL = None
@@ -71,3 +72,18 @@ def extract_nounverb(sentence: str) -> (str, str):
 
     # Return that nothing has been found
     return None
+
+
+if __name__ == "__main__":
+    # Read in file
+    with open('novels.txt', 'r') as f:
+        lines = f.readlines()
+
+    import tqdm
+
+    # Parse the file
+    out = list(filter(lambda x: x is not None, map(extract_nounverb, tqdm.tqdm(lines))))
+
+    # Write the output
+    with open('pairs.txt', 'w') as f:
+        f.writelines([f'{v} {n}\n' for v, n in out])
