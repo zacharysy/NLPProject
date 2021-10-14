@@ -17,8 +17,9 @@ class Benchmark:
     def __init__(self):
         self.games_root = "./benchmark/games"
         self.levels = 30
-        self.trials = 100
+        self.trials = 50
         self.max_moves = 1000
+        self.levels_step = 4
 
     # Create a single treasure_hunter game with the given level and saves it to self.games_root
     def createGame(self, level: int, trial: int) -> str:
@@ -79,11 +80,13 @@ class Benchmark:
                     agent: textworld.Agent,
                     directory_path: Optional(str) = None,
                     levels: Optional(int) = None,
+                    step: Optional(int) = None,
                     trials: Optional(int) = None,
                     max_moves: Optional(int) = None
                 ):
         directory_path = directory_path or self.games_root
         levels = levels or self.levels
+        step = step or self.levels_step
         trials = trials or self.trials
         max_moves = max_moves or self.max_moves
         games = None
@@ -104,7 +107,7 @@ class Benchmark:
         if games is None:
             return
 
-        for level in range(1, levels + 1):
+        for level in range(1, levels + 1, step):
             print(f"Level {level}")
             results[level] = {
                 "average_score": 0,
@@ -118,6 +121,8 @@ class Benchmark:
 
             results[level]["average_score"] /= trials
             results[level]["average_moves"] /= trials
+
+            print(f"Level {level}\n average score: {results[level]['average_score']}\t average moves: {results[level]['average_moves']}")
 
         print()
         pprint(results)
@@ -149,7 +154,7 @@ def main(args):
         benchmark.registerGames()
         return 1
 
-    if args.actor == "baseline":
+    if args.agent == "baseline":
         agent = BaselineAgent()
     else:
         print("Agent not recognized")
@@ -162,7 +167,7 @@ def main(args):
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Run Benchmarks")
     parser.add_argument("--generate", action="store_true", help="Create the benchmark games")
-    parser.add_argument("--actor", choices=["baseline"], help="Possible values: baseline")
+    parser.add_argument("--agent", choices=["baseline"], help="Possible values: baseline")
 
     args = parser.parse_args()
     main(args)
