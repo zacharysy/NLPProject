@@ -35,4 +35,4 @@ Step Breakdown:
 - To generate games used for the benchmark:
     - `python3 benchmark/benchmark.py --generate`
 - To run the benchmark on the baseline:
-    - `python3 benchmark/benchmark.py --actor baseline`
+    - `python3 benchmark/benchmark.py --agent baseline`
