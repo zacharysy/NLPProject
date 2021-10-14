@@ -8,7 +8,7 @@ from textworld.generator.game import GameOptions
 from textworld.generator import compile_game
 
 sys.path.append("./")
-from baseline.ExampleAgent import CustomAgent
+# from baseline.ExampleAgent import CustomAgent
 from baseline.BaselineAgent import BaselineAgent
 
 import argparse
