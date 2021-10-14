@@ -23,4 +23,7 @@
  23: {'average_moves': 1000.0, 'average_score': 0.0},
  24: {'average_moves': 1000.0, 'average_score': 0.0},
  25: {'average_moves': 991.6, 'average_score': -0.02},
- 26: {'average_moves': 1000.0
+ 26: {'average_moves': 1000.0, 'average_score': 0.0},
+  27: {'average_moves': 1000.0, 'average_score': 0.0},
+  28: {'average_moves': 984.26, 'average_score': -0.02},
+  29: {'average_moves': 1000.0, 'average_score': 0.0},
