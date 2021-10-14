@@ -28,6 +28,24 @@ def _initialize_spacy():
         SPACY_MODEL = spacy.load(SPACY_MODELNAME)
 
 
+def extract_nouns(sentence: str) -> [str]:
+    """
+    This function takes in a sentence and returns all nouns.
+
+    Input: an English sentence
+    Output: a list of the nouns
+    """
+
+    # Make sure model is initialized
+    _initialize_spacy()
+
+    # Parse the sentence
+    doc = SPACY_MODEL(sentence)
+
+    # Return all nouns
+    return [i.text for i in doc if i.pos_ in VALID_NOUN_POS]
+
+
 def extract_nounverb(sentence: str) -> (str, str):
     """
     This function takes in a sentence, performs part-of-speech
@@ -45,7 +63,7 @@ def extract_nounverb(sentence: str) -> (str, str):
     is the neutral form of the verb, is extracted.
 
     Input: an English sentence
-    Output: verb, noun, or None if sentence not in a valid format
+    Output: (verb, noun), or None if sentence not in a valid format
     """
 
     # Initilize spaCy parser
