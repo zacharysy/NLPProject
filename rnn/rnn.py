@@ -106,17 +106,18 @@ class Model(torch.nn.Module):
     def restart(self):
         self.prev_h = self.h_initial.clone()
 
-    def train(self, data=None, epochs=30, optimizer=None):
+    def train(self, data=None,  epochs=30, optimizer=None):
         if not data or not optimizer:
             print('Missing training data or optimizer')
             return
         # from tutorial notebook
         for epoch in range(epochs):
             random.shuffle(data)
+            cutoff = int(len(data) * 0.8)
+            dev_data = data[cutoff:]
 
             train_loss = 0
-            for line in progress(data):
-
+            for line in progress(data[:cutoff]):
                 self.restart()
                 states = [self.start()]
                 loss = 0.
@@ -136,7 +137,25 @@ class Model(torch.nn.Module):
                 torch.nn.utils.clip_grad_norm_(self.parameters(), 1.0)
 
                 optimizer.step()
+
+            dev_loss = 0
+            self.eval()
+            for line in dev_data:
+                self.restart()
+                states = [self.start()]
+                loss = 0.
+                for word in line:
+                    q = states[-1]
+
+                    predicted_dist = self.forward(q)
+                    loss -= predicted_dist[predicted_dist.argmax()]
+                    q = self.read(q, word)
+                    states.append(q)
+
+                dev_loss += loss.item()
+
             print(f'[{epoch+1}] train_loss={train_loss}', flush=True)
+            print(f'[{epoch+1}] dev_loss={dev_loss}', flush=True)
 
         now = datetime.datetime.now()
         filename = f'epoch_{epoch}-{now.strftime("%d-%m_%H:%M")}'
@@ -165,7 +184,7 @@ def main(args):
 
     model = Model(vocab, response_vocab, 64, device)
     o = torch.optim.SGD(model.parameters(), lr=0.1)
-    model.train(data=input_train, epochs=5, optimizer=o)
+    model.train(data=input_train,  epochs=5, optimizer=o)
     model.save(args.save)
 
 
