@@ -20,13 +20,14 @@ separate_vocab = True
 
 # Hyperparameters
 lr = 0.0003
-epochs = 2
+dev_prop = 0.1
+epochs = 1
 
 # Objects
 class Vocab(collections.abc.MutableSet):
     """Set-like data structure that can change words into numbers and back."""
     def __init__(self):
-        words = {'<EOS>', '<UNK>'}
+        words = {'<SOS>', '<EOS>', '<UNK>'}
         self.num_to_word = list(words)
         self.word_to_num = {word:num for num, word in enumerate(self.num_to_word)}
     def add(self, word):
@@ -184,6 +185,13 @@ class Transformer(nn.Module):
 
 
 # Helper functions
+def wrap_sentence(in_sentence: [str]) -> [str]:
+    """
+    This function pads a sentence with <SOS> and <EOS>
+    """
+    return ['<SOS>'] + in_sentence + ['<EOS>']
+
+
 def contains_digit(in_str: str) -> bool:
     """
     This function checks if a string contains any numbers.
@@ -192,7 +200,7 @@ def contains_digit(in_str: str) -> bool:
     return sum([i.isdigit() for i in in_str]) > 0
 
 
-def preprocess_line(in_str: str) -> [str]:
+def preprocess_line(in_str: str, start_symbol: str = None) -> [str]:
     """
     This function is used to preprocess a single line of the input.
     """
@@ -205,6 +213,10 @@ def preprocess_line(in_str: str) -> [str]:
 
     # Filter out any numbers
     line = ['<num>' if contains_digit(i) else i for i in line]
+
+    # Add a start symbol
+    if start_symbol is not None:
+        line = [start_symbol] + line
 
     return line
 
@@ -219,20 +231,134 @@ def load_data(path: str) -> [([str], [str])]:
     with open(path, 'r') as f:
         data = list(f.readlines())
 
-    # Parse each file
-    data = [preprocess_line(line) for line in data]
-
     # Split into input/target
-    inputs = [line for i, line in enumerate(data) if i % 2 == 0]
-    targets = [line for i, line in enumerate(data) if i % 2 == 1]
+    inputs = [preprocess_line(line) for i, line in enumerate(data) if i % 2 == 0]
+    targets = [preprocess_line(line) for i, line in enumerate(data) if i % 2 == 1]
     data = list(zip(inputs, targets))
 
     return data
 
 
+def train_loop(model, opt, loss_fn, data):
+    """
+    Adapted from Daniel Melchor: https://medium.com/@danielmelchor/a-detailed-guide-to-pytorchs-nn-transformer-module-c80afbc9ffb1
+    """
+
+    model.train()
+    total_loss = 0
+
+    for scene, command in tqdm.tqdm(data):
+        # Wrap command
+        command = wrap_sentence(command)
+
+        # Encode the vectors
+        scene_nums = model.encode_src(scene).to(device)
+        command_nums = model.encode_tgt(command).to(device)
+
+        # Now we shift the tgt by one so with the <SOS> we predict the token at pos 1
+        y_input = command_nums[:,:-1]
+        y_expected = command_nums[:,1:]
+
+        # Get mask to mask out the next words
+        sequence_length = y_input.size(1)
+        tgt_mask = model.get_tgt_mask(sequence_length).to(device)
+
+        # Standard training except we pass in y_input and tgt_mask
+        pred = model(scene_nums, y_input, tgt_mask)
+
+        # Permute pred to have batch size first again
+        loss = loss_fn(pred, y_expected)
+
+        opt.zero_grad()
+        loss.backward()
+        opt.step()
+
+        total_loss += loss.detach().item()
+
+    return total_loss / len(data)
+
+
+def validation_loop(model, loss_fn, data):
+    """
+    Adapted from Daniel Melchor: https://medium.com/@danielmelchor/a-detailed-guide-to-pytorchs-nn-transformer-module-c80afbc9ffb1
+    """
+
+    model.eval()
+    total_loss = 0
+
+    with torch.no_grad():
+        for scene, command in data:
+            # Wrap command
+            command = wrap_sentence(command)
+
+            # Encode the vectors
+            scene_nums = model.encode_src(scene).to(device)
+            command_nums = model.encode_tgt(command).to(device)
+
+            # Now we shift the tgt by one so with the <SOS> we predict the token at pos 1
+            y_input = command_nums[:,:-1]
+            y_expected = command_nums[:,1:]
+
+            # Get mask to mask out the next words
+            sequence_length = y_input.size(1)
+            tgt_mask = model.get_tgt_mask(sequence_length).to(device)
+
+            # Standard training except we pass in y_input and tgt_mask
+            pred = model(scene_nums, y_input, tgt_mask)
+            loss = loss_fn(pred, y_expected)
+            total_loss += loss.detach().item()
+
+    return total_loss / len(data)
+
+
+def predict(model, scene: [str], max_length=15, SOS_token='<SOS>', EOS_token='<EOS>'):
+    """
+    Adapted from Daniel Melchor: https://medium.com/@danielmelchor/a-detailed-guide-to-pytorchs-nn-transformer-module-c80afbc9ffb1
+    """
+
+    # Set to evaluation mode
+    model.eval()
+
+    # Prepare the inputs
+    scene_nums = model.encode_src(scene).to(device)
+    y_input = model.encode_tgt([SOS_token]).to(device)
+    out_sentence = []
+
+    # Count the input sequence length
+    num_tokens = len(scene)
+
+    with torch.no_grad():
+        for _ in range(max_length):
+            # Get source mask
+            tgt_mask = model.get_tgt_mask(y_input.size(1)).to(device)
+
+            pred = model(scene_nums, y_input, tgt_mask)
+
+            next_item = pred.topk(1)[1].view(-1)[-1].item() # num with highest probability
+            next_item = torch.tensor([[next_item]], device=device)
+
+            # Concatenate previous input with predicted best word
+            y_input = torch.cat((y_input, next_item), dim=1)
+
+            next_word = model.command_vocab.denumberize(y_input.view(-1).tolist()[-1])
+            out_sentence.append(next_word)
+
+            # Stop if model predicts end of sentence
+            if next_word == EOS_token:
+                break
+
+    return out_sentence
+
+
 if __name__ == '__main__':
     # Load the data
     data = load_data(train_path)
+
+    # Split into trai/dev sets
+    random.shuffle(data)
+    dev_cutoff = int(len(data) * dev_prop)
+    dev_data = data[:dev_cutoff]
+    data = data[dev_cutoff:]
 
     # Create vocabularies
     scene_vocab = Vocab()
@@ -267,25 +393,12 @@ if __name__ == '__main__':
 
         for epoch in range(epochs):
             # Perform pre-loop accounting
+            print(f'--- Epoch {epoch+1}/{epochs} ---')
             random.shuffle(data)
-            train_loss = 0
 
-            for scene, command in tqdm.tqdm(data):
-                # Encode the vectors
-                scene_nums = model.encode_src(scene).to(device)
-                command_nums = model.encode_tgt(command).to(device)
+            # Training loop
+            train_loss = train_loop(model, optim, loss_fn, data)
+            dev_loss = validation_loop(model, loss_fn, dev_data)
 
-                # Forward pass
-                out = model(scene_nums, command_nums)
-                loss_val = loss_fn(out, command_nums)
-
-                # Backprop
-                optim.zero_grad()
-                loss_val.backward()
-                optim.step()
-
-                # Perform housekeeping
-                train_loss += loss_val.detach().item()
-
-        print(f'Epoch: {epoch+1}/{epochs}, Train Loss: {train_loss}')
-        torch.save(model, save_path)
+            print(f'Train Loss: {train_loss:3e}, Dev Loss: {dev_loss:3e}')
+            torch.save(model, save_path)
