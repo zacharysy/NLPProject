@@ -184,7 +184,7 @@ def main(args):
 
     model = Model(vocab, response_vocab, 64, device)
     o = torch.optim.SGD(model.parameters(), lr=0.1)
-    model.train(data=input_train,  epochs=5, optimizer=o)
+    model.train(data=input_train,  epochs=10, optimizer=o)
     model.save(args.save)
 
 
