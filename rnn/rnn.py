@@ -5,6 +5,8 @@ import datetime
 import argparse
 from pprint import pprint
 
+from torch import optim
+
 
 def progress(iterable):
     import os
@@ -22,9 +24,14 @@ def progress(iterable):
 def read_train_data(filename):
     input_vocab = []
     output_responses = []
-    for i, line in enumerate(open(filename)):
+    lines = []
+    with open(filename) as file:
+        for line in file:
+            lines.append(line.strip())
+    for i, line in enumerate(lines):
         if i % 2 == 0:
-            input_vocab.append(line.strip().split(' ') + ['<EOS>'])
+            input_vocab.append({'line': line.strip().split(
+                ' ') + ['<EOS>'], 'command': lines[i+1]})
         else:
             output_responses.append([line.strip()])
     return input_vocab, output_responses
@@ -121,7 +128,7 @@ class Model(torch.nn.Module):
                 self.restart()
                 states = [self.start()]
                 loss = 0.
-                for word in line:
+                for word in line['line']:
                     q = states[-1]
 
                     predicted_dist = self.forward(q)
@@ -138,24 +145,27 @@ class Model(torch.nn.Module):
 
                 optimizer.step()
 
-            dev_loss = 0
             self.eval()
+            correct_commands = 0
+            incorrect_commands = 0
+
             for line in dev_data:
                 self.restart()
                 states = [self.start()]
-                loss = 0.
-                for word in line:
+                for word in line['line']:
                     q = states[-1]
 
                     predicted_dist = self.forward(q)
-                    loss -= predicted_dist[predicted_dist.argmax()]
+                    if line['command'] == self.response_vocab.denumberize(predicted_dist.argmax()):
+                        correct_commands += 1
+                    else:
+                        incorrect_commands += 1
                     q = self.read(q, word)
                     states.append(q)
 
-                dev_loss += loss.item()
-
             print(f'[{epoch+1}] train_loss={train_loss}', flush=True)
-            print(f'[{epoch+1}] dev_loss={dev_loss}', flush=True)
+            print(
+                f'[{epoch+1}] dev correct/incorrect={correct_commands}/{incorrect_commands}', flush=True)
 
         now = datetime.datetime.now()
         filename = f'epoch_{epoch}-{now.strftime("%d-%m_%H:%M")}'
@@ -174,7 +184,7 @@ def main(args):
 
     words = collections.Counter()
     for line in input_train:
-        words.update(line)
+        words.update(line['line'])
     vocab = Vocab(words, 750)
 
     commands = collections.Counter()
@@ -184,7 +194,7 @@ def main(args):
 
     model = Model(vocab, response_vocab, 64, device)
     o = torch.optim.SGD(model.parameters(), lr=0.1)
-    model.train(data=input_train,  epochs=10, optimizer=o)
+    model.train(data=input_train, epochs=10, optimizer=o)
     model.save(args.save)
 
 
