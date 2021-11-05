@@ -131,7 +131,7 @@ class Transformer(nn.Module):
             dropout=dropout_p,
         )
         self.out = nn.Linear(dim_model, len(self.command_vocab))
-        self.softmax = nn.Softmax()
+        self.softmax = nn.Softmax(dim=2)
 
     def encode_src(self, src: [str]):
         return torch.tensor([self.scene_vocab.numberize(i) for i in src], dtype=torch.long).unsqueeze(0)
@@ -209,7 +209,7 @@ def preprocess_line(in_str: str, start_symbol: str = None) -> [str]:
     in_str = re.sub('([".,!?()])', r' \1 ', in_str)
 
     # Strip and split
-    line = in_str.split()
+    line = in_str.lower().split()
 
     # Filter out any numbers
     line = ['<num>' if contains_digit(i) else i for i in line]
@@ -334,7 +334,9 @@ def predict(model, scene: [str], max_length=15, SOS_token='<SOS>', EOS_token='<E
 
             pred = model(scene_nums, y_input, tgt_mask)
 
-            next_item = pred.topk(1)[1].view(-1)[-1].item() # num with highest probability
+            # Get the next item
+            next_item = torch.multinomial(pred[:,:,-1].squeeze(), 1).item() # random number
+            # next_item = pred.topk(1)[1].view(-1)[-1].item() # num with highest probability
             next_item = torch.tensor([[next_item]], device=device)
 
             # Concatenate previous input with predicted best word
