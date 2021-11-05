@@ -350,6 +350,10 @@ def predict(model, scene: [str], max_length=15, SOS_token='<SOS>', EOS_token='<E
     return out_sentence
 
 
+def load_model(save_path: str):
+    return torch.load(save_path)
+
+
 if __name__ == '__main__':
     # Load the data
     data = load_data(train_path)
