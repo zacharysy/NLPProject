@@ -6,12 +6,14 @@ from pprint import pprint
 
 sys.path.append("./")
 
-from BaseAgent import BaseAgent
+from translation.transformer import *
+import BaseAgent
 
 zorkPath = "./benchmark/zork1.z5"
 
 maxMoves = 1000
-agent = BaseAgent()
+# agent = BaseAgent.BaseAgent()
+agent = BaseAgent.TransformerAgent()
 
 env = textworld.start(zorkPath)
 game_state = env.reset()
@@ -20,6 +22,7 @@ reward, done, moves = 0, False, 0
 while not done and moves < maxMoves:
     moves += 1
     command = agent.act(game_state, reward, done)
+    # print(command)
     game_state, reward, done = env.step(command)
 
 
