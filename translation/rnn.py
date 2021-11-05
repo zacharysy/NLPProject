@@ -1,11 +1,9 @@
 import collections
 import random
+import re
 import torch
 import datetime
 import argparse
-from pprint import pprint
-
-from torch import optim
 
 
 def progress(iterable):
@@ -114,9 +112,9 @@ class Model(torch.nn.Module):
         self.prev_h = self.h_initial.clone()
 
     def train(self, data=None,  epochs=30, optimizer=None):
-        if not data or not optimizer:
-            print('Missing training data or optimizer')
-            return
+        # if not data or not optimizer:
+        #     print('Missing training data or optimizer')
+        #     return
         # from tutorial notebook
         for epoch in range(epochs):
             random.shuffle(data)
@@ -170,6 +168,23 @@ class Model(torch.nn.Module):
         now = datetime.datetime.now()
         filename = f'epoch_{epoch}-{now.strftime("%d-%m_%H:%M")}'
         torch.save(self, filename)
+
+
+def preprocess_line(text):
+    cleaned = re.sub('([".,!?()])', r' \1 ', text)
+    line = cleaned.split()
+    return line
+
+
+def predict(model, text):
+    # model.eval()
+    states = [model.start()]
+    q = states[-1]
+    for word in text:
+        word = model.best(q)
+        q = model.read(q, word)
+        states.append(q)
+    return word
 
 
 def main(args):
