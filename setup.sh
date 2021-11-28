@@ -13,4 +13,6 @@ pip install -U spacy[cuda112]         # modify for a given CUDA version
 pip install -U textworld
 pip install -U tqdm
 pip install -U bs4
+pip install -U diaparser # Dependency Parser
+pip install -U magnitude # Word Embeddings helper
 python -m spacy download en_core_web_trf

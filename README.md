@@ -36,3 +36,18 @@ Step Breakdown:
     - `python3 benchmark/benchmark.py --generate`
 - To run the benchmark on the baseline:
     - `python3 benchmark/benchmark.py --agent baseline`
+
+
+
+### Fix diaparser
+- On line 113 of `/.nlp_venv/lib/python3.9/site-packages/diaparser/utils/transform.py` change to
+
+```
+def __getattr__(self, name):
+    if name in self.__dict__:
+        return self.__dict__[name]
+    elif name in self.maps:
+        return self.values[self.maps[name]]
+    else:
+        raise AttributeError()
+```
