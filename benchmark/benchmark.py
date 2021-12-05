@@ -1,20 +1,19 @@
 from __future__ import annotations
-from BaseAgent import RNNAgent
+import sys
+sys.path.append("./")
+
+from agents import RNNAgent, BaselineAgent
 import argparse
-from baseline.BaselineAgent import BaselineAgent
 from collections import defaultdict
 from pprint import pprint
 import json
 import os
 import tqdm
-import sys
 
 import textworld
 from textworld.generator.game import GameOptions
 from textworld.generator import compile_game
 from translation.rnn import *
-
-sys.path.append("./")
 # from baseline.ExampleAgent import CustomAgent
 
 
@@ -25,6 +24,7 @@ class Benchmark:
         self.trials = 50
         self.max_moves = 1000
         self.levels_step = 4
+        self.save_to = None
 
     # Create a single treasure_hunter game with the given level and saves it to self.games_root
     def createGame(self, level: int, trial: int) -> str:
@@ -133,6 +133,7 @@ class Benchmark:
                 f"Level {level}\n average score: {results[level]['average_score']}\t average moves: {results[level]['average_moves']}")
 
         print()
+        self.saveResults(results)
         pprint(results)
 
     # run a single game
@@ -154,9 +155,44 @@ class Benchmark:
 
         return score, moves
 
+    # Run the zork benchmork
+    def testZork(self, agent):
+        zorkPath = "./benchmark/zork1.z5"
+
+        env = textworld.start(zorkPath)
+        game_state = env.reset()
+        reward, done, moves = 0, False, 0
+
+        while not done and moves < self.max_moves:
+            moves += 1
+            command = agent.act(game_state, reward, done)
+            print(game_state.feedback.strip())
+            print(f"> {command}")
+            print()
+            game_state, reward, done = env.step(command)
+
+        results = {
+            "score" : game_state['score'],
+            "moves" : moves
+        }
+
+        self.saveResults(results)
+        pprint(results)
+
+    def saveResults(self, results):
+        if self.save_to is None:
+            return None
+
+        with open(self.save_to, "w") as file:
+            file.write(json.dumps(results))
+
+
+        return f"Saved results to {self.save_to}"
 
 def main(args):
     benchmark = Benchmark()
+    benchmark.save_to = args.save
+
 
     if args.generate:
         benchmark.generateGames()
@@ -172,7 +208,11 @@ def main(args):
         return 0
 
     benchmark.registerGames()
-    benchmark.runBenchmark(agent)
+
+    if args.type == "zork":
+        benchmark.testZork(agent)
+    elif args.type == "treasure":
+        benchmark.runBenchmark(agent)
     return 1
 
 
@@ -181,7 +221,11 @@ if __name__ == "__main__":
     parser.add_argument("--generate", action="store_true",
                         help="Create the benchmark games")
     parser.add_argument(
-        "--agent", choices=["baseline", "rnn"], help="Possible values: baseline")
+        "--agent", choices=["baseline", "rnn"], help="Which game agent to use")
+    parser.add_argument(
+        "--type", choices=["treasure", "zork"], help="Which kind of benchmark to run")
+    parser.add_argument(
+        "--save", type=str, help="JSON file to save the benchmark results in")
 
     args = parser.parse_args()
     main(args)
