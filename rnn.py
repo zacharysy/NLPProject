@@ -1,11 +1,11 @@
 import collections
 import random
-import re
 import torch
 import datetime
 import argparse
+from pprint import pprint
 
-# All code adapted from HW 1
+from torch import optim
 
 
 def progress(iterable):
@@ -96,7 +96,6 @@ class Model(torch.nn.Module):
         return torch.tanh(z + self.c)
 
     def forward(self, q):
-        # return torch.log_softmax(self.linear(torch.flatten((self.D @ q + self.e))), dim=0)
         return self.softmax(self.linear(torch.flatten((self.D @ q + self.e))))
 
     def start(self):
@@ -131,11 +130,14 @@ class Model(torch.nn.Module):
                     q = states[-1]
 
                     predicted_dist = self.forward(q)
+                    # loss -= predicted_dist[torch.multinomial(
+                    #     predicted_dist, 1)]
                     q = self.read(q, word)
                     states.append(q)
 
-                loss = -1*predicted_dist[self.response_vocab.numberize(
+                loss = -predicted_dist[self.response_vocab.numberize(
                     line['command'])]
+
                 train_loss += loss.item()
 
                 optimizer.zero_grad()
@@ -156,7 +158,6 @@ class Model(torch.nn.Module):
                     q = states[-1]
 
                     predicted_dist = self.forward(q)
-                    # if line['command'] == self.response_vocab.denumberize(predicted_dist.argmax()):
                     if line['command'] == self.response_vocab.denumberize(torch.multinomial(predicted_dist, 1)):
                         correct_commands += 1
                     else:
@@ -169,37 +170,8 @@ class Model(torch.nn.Module):
                 f'[{epoch+1}] dev correct/incorrect={correct_commands}/{incorrect_commands}', flush=True)
 
         now = datetime.datetime.now()
-        filename = f'epoch_{epoch}-{now.strftime("%d-%m_%H:%M")}'
-        torch.save(self, filename)
-
-
-def preprocess_line(text):
-    cleaned = re.sub('([".,!?()])', r' \1 ', text)
-    line = cleaned.split()
-    return line
-
-
-def predict(model, text):
-    model.eval()
-    states = [model.start()]
-    command = ""
-    for word in text:
-        q = states[-1]
-        dist = model.forward(q)
-        command = model.response_vocab.denumberize(
-            torch.multinomial(dist, 1))
-        q = model.read(q, word)
-        states.append(q)
-    return command
-# def predict(model, text):
-#     # model.eval()
-#     states = [model.start()]
-#     for word in text:
-#         q = states[-1]
-#         word = model.best(q)
-#         q = model.read(q, word)
-#         states.append(q)
-#     return word
+        filename = f'epoch_{epoch}-{now.strftime("%d-%m_%H:%M")}{correct_commands}'
+        torch.save(self, f=filename)
 
 
 def main(args):
@@ -208,6 +180,7 @@ def main(args):
         device = 'cuda'
     else:
         print('Using CPU')
+    device = 'cpu'
 
     input_train, output_responses = read_train_data(args.train)
 
@@ -223,8 +196,7 @@ def main(args):
 
     model = Model(vocab, response_vocab, 64, device)
     o = torch.optim.SGD(model.parameters(), lr=0.1)
-    model.train(data=input_train, epochs=10, optimizer=o)
-    model.save(args.save)
+    model.train(data=input_train, epochs=1, optimizer=o)
 
 
 if __name__ == '__main__':
