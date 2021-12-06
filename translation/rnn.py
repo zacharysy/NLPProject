@@ -5,6 +5,8 @@ import torch
 import datetime
 import argparse
 
+# All code adapted from HW 1
+
 
 def progress(iterable):
     import os
@@ -86,6 +88,7 @@ class Model(torch.nn.Module):
         self.prev_h = self.h_initial.clone()
         self.linear = torch.nn.Linear(
             in_features=len(vocab), out_features=len(response_vocab), device=device)
+        self.softmax = torch.nn.Softmax()
 
     def generate_state(self, one_hot_idx):
         v = self.B[:, one_hot_idx]
@@ -93,7 +96,8 @@ class Model(torch.nn.Module):
         return torch.tanh(z + self.c)
 
     def forward(self, q):
-        return torch.log_softmax(self.linear(torch.flatten((self.D @ q + self.e))), dim=0)
+        # return torch.log_softmax(self.linear(torch.flatten((self.D @ q + self.e))), dim=0)
+        return self.softmax(self.linear(torch.flatten((self.D @ q + self.e))))
 
     def start(self):
         return self.h_initial
@@ -112,9 +116,6 @@ class Model(torch.nn.Module):
         self.prev_h = self.h_initial.clone()
 
     def train(self, data=None,  epochs=30, optimizer=None):
-        # if not data or not optimizer:
-        #     print('Missing training data or optimizer')
-        #     return
         # from tutorial notebook
         for epoch in range(epochs):
             random.shuffle(data)
@@ -130,10 +131,11 @@ class Model(torch.nn.Module):
                     q = states[-1]
 
                     predicted_dist = self.forward(q)
-                    loss -= predicted_dist[predicted_dist.argmax()]
                     q = self.read(q, word)
                     states.append(q)
 
+                loss = -1*predicted_dist[self.response_vocab.numberize(
+                    line['command'])]
                 train_loss += loss.item()
 
                 optimizer.zero_grad()
@@ -143,7 +145,7 @@ class Model(torch.nn.Module):
 
                 optimizer.step()
 
-            self.eval()
+            # self.eval()
             correct_commands = 0
             incorrect_commands = 0
 
@@ -154,7 +156,8 @@ class Model(torch.nn.Module):
                     q = states[-1]
 
                     predicted_dist = self.forward(q)
-                    if line['command'] == self.response_vocab.denumberize(predicted_dist.argmax()):
+                    # if line['command'] == self.response_vocab.denumberize(predicted_dist.argmax()):
+                    if line['command'] == self.response_vocab.denumberize(torch.multinomial(predicted_dist, 1)):
                         correct_commands += 1
                     else:
                         incorrect_commands += 1
@@ -177,14 +180,26 @@ def preprocess_line(text):
 
 
 def predict(model, text):
-    # model.eval()
+    model.eval()
     states = [model.start()]
-    q = states[-1]
+    command = ""
     for word in text:
-        word = model.best(q)
+        q = states[-1]
+        dist = model.forward(q)
+        command = model.response_vocab.denumberize(
+            torch.multinomial(dist, 1))
         q = model.read(q, word)
         states.append(q)
-    return word
+    return command
+# def predict(model, text):
+#     # model.eval()
+#     states = [model.start()]
+#     for word in text:
+#         q = states[-1]
+#         word = model.best(q)
+#         q = model.read(q, word)
+#         states.append(q)
+#     return word
 
 
 def main(args):
@@ -193,7 +208,6 @@ def main(args):
         device = 'cuda'
     else:
         print('Using CPU')
-    device = 'cpu'
 
     input_train, output_responses = read_train_data(args.train)
 
