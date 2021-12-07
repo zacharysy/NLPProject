@@ -46,7 +46,7 @@ def scrape_text(read_online_url: str):
         return
 
     blocks = map(lambda fragment: fragment.get_text(
-        strip=True).lower(), soup.find_all('p', class_=''))
+        strip=True), soup.find_all('p', class_=''))
     for block in blocks:
         # Split lines by ., ?, !, and any of the previous followed by a quote.
         lines = re.split(r'(?:(?<=[.!?])|(?<=[.!?]["”]))\s+', block)
