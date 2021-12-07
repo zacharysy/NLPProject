@@ -2,7 +2,10 @@ from __future__ import annotations
 import sys
 sys.path.append("./")
 
-import random, re
+from baseline.utils import extract_nouns
+from baseline.nounverb import NounVerb
+import random
+import re
 import spacy
 from pprint import pprint
 import translation.rnn as rnn
@@ -10,9 +13,6 @@ from translation.transformer import TranslationVocab, Encoder, Decoder, Translat
 import torch
 
 import textworld
-
-from baseline.nounverb import NounVerb
-from baseline.utils import extract_nouns
 
 
 class BaseAgent(textworld.Agent):
@@ -22,12 +22,14 @@ class BaseAgent(textworld.Agent):
     def callModel(self, text):
         return "open mailbox"
 
+
 class BaselineAgent(textworld.Agent):
     def __init__(self):
         # Load noun/verb pairs
         with open('./baseline/pairs.txt') as f:
             data = f.readlines()
-        data = list(filter(lambda x: len(x) == 2, map(lambda x: x.strip().split(' '), data)))
+        data = list(filter(lambda x: len(x) == 2, map(
+            lambda x: x.strip().split(' '), data)))
 
         self.model = NounVerb(data)
 
@@ -49,6 +51,7 @@ class BaselineAgent(textworld.Agent):
             verb = self.model(word)
 
         return f"{verb} {word}"
+
 
 class TransformerAgent(textworld.Agent):
     """
@@ -80,14 +83,39 @@ class TransformerAgent(textworld.Agent):
 class RNNAgent(textworld.Agent):
     def __init__(self, weight_path='./translation/rnn.pt'):
         self.model = torch.load(weight_path)
+        self.state = []
 
     def act(self, game_state, reward, done):
-        return self.callModel(game_state.feedback)
+        while len(self.state) > 1 and self.state[-1].feedback == game_state.feedback:
+            self.state.pop()
+        self.state.append(game_state)
+        return self.callModel(self.state[-1].feedback)
 
     def callModel(self, text):
         text = rnn.preprocess_line(text)
         prediction = rnn.predict(self.model, text)
         return ''.join(prediction)
+
+
+class DQAgent(textworld.Agent):
+    def __init__(self, encoder_weights=None, ff_weights=None):
+        self.encoder = torch.load(
+            encoder_weights) if encoder_weights else encoder_weights
+        self.ff = torch.load(
+            ff_weights) if ff_weights else ff_weights
+        self.state = []
+
+    def act(self, game_state, reward, done):
+        while len(self.state) > 1 and self.state[-1].feedback == game_state.feedback:
+            self.state.pop()
+        self.state.append(game_state)
+        return self.callModel(self.state[-1].feedback)
+
+    def callModel(self, action_num):
+        # text = rnn.preprocess_line(text)
+        # prediction = rnn.predict(self.model, text)
+        # return ''.join(prediction)
+        return self.ff.action_vocab.denumberize(action_num)
 
 
 if __name__ == "__main__":
