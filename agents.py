@@ -1,14 +1,15 @@
 from __future__ import annotations
+import sys
+sys.path.append("./")
+
 import random, re
 import spacy
 from pprint import pprint
 import translation.rnn as rnn
-import translation.transformer as transformer
+from translation.transformer import TranslationVocab, Encoder, Decoder, TranslationModel
 import torch
-import sys
+
 import textworld
-sys.path.append("./")
-sys.path.append("./translation/")
 
 from baseline.nounverb import NounVerb
 from baseline.utils import extract_nouns
@@ -54,22 +55,26 @@ class TransformerAgent(textworld.Agent):
     More than meets the eye
     """
 
-    def __init__(self, weight_path='./translation/transformer.ckpt'):
+    def __init__(self, weight_path='./translation/transformer'):
         # Load model
         # self.model = transformer.load_model(weight_path)
         self.model = torch.load(weight_path)
+        self.state = []
 
     def act(self, game_state, reward, done):
-        return self.callModel(game_state.feedback)
+        self.state.append(game_state)
+        while self.state[-1].feedback == game_state.feedback and len(self.state) > 1:
+            self.state.pop()
+
+        text = re.sub("(\W|_)+", " ", self.state[-1].feedback).strip().lower().split() + ["<EOS>"]
+
+        return self.callModel(text)
 
     def callModel(self, text):
-        # Parse the input text
-        text = transformer.preprocess_line(text)
-
         # Run the prediction
-        prediction = transformer.predict(self.model, text)
+        prediction = self.model.translate(text)
 
-        return ''.join(prediction)
+        return ' '.join(prediction)
 
 
 class RNNAgent(textworld.Agent):

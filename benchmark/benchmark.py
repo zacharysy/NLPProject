@@ -2,7 +2,8 @@ from __future__ import annotations
 import sys
 sys.path.append("./")
 
-from agents import RNNAgent, BaselineAgent
+from agents import RNNAgent, BaselineAgent, TransformerAgent
+from translation.transformer import TranslationVocab, Encoder, Decoder, TranslationModel
 import argparse
 from collections import defaultdict
 from pprint import pprint
@@ -130,7 +131,7 @@ class Benchmark:
             results[level]["average_moves"] /= trials
 
             print(
-                f"Level {level}\n average score: {results[level]['average_score']}\t average moves: {results[level]['average_moves']}")
+                f"average score: {results[level]['average_score']}\t average moves: {results[level]['average_moves']}\n")
 
         print()
         self.saveResults(results)
@@ -203,6 +204,8 @@ def main(args):
         agent = BaselineAgent()
     elif args.agent == "rnn":
         agent = RNNAgent()
+    elif args.agent == "transformer":
+        agent = TransformerAgent()
     else:
         print("Agent not recognized")
         return 0
@@ -221,7 +224,7 @@ if __name__ == "__main__":
     parser.add_argument("--generate", action="store_true",
                         help="Create the benchmark games")
     parser.add_argument(
-        "--agent", choices=["baseline", "rnn"], help="Which game agent to use")
+        "--agent", choices=["baseline", "rnn", "transformer"], help="Which game agent to use")
     parser.add_argument(
         "--type", choices=["treasure", "zork"], help="Which kind of benchmark to run")
     parser.add_argument(
