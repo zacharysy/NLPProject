@@ -141,8 +141,10 @@ if __name__ == "__main__":
 
         with tqdm.tqdm(len(lines)) as progress:
             with ThreadPoolExecutor(max_workers=10000) as executor:
+                # results = list(tqdm.tqdm(executor.map(
+                #     partial(parse_line, saveTo=saveTo), lines), total=len(lines)))
                 results = list(tqdm.tqdm(executor.map(
-                    partial(parse_line, saveTo=saveTo), lines), total=len(lines)))
+                    lambda line: parse_line(line, saveTo), lines), total=len(lines)))
         # for pld in parsed_line_data:
         #     if pld['verb'] is not None:
         #         with open(saveTo, 'a+') as file:
