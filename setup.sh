@@ -15,4 +15,6 @@ pip install -U tqdm
 pip install -U bs4
 pip install -U diaparser # Dependency Parser
 pip install -U magnitude # Word Embeddings helper
+pip install -U nltk
+python -m nltk.downloader all
 python -m spacy download en_core_web_trf
