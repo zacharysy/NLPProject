@@ -6,14 +6,13 @@ or
 '''
 
 # from baseline.utils import convert_verb
-from concurrent.futures import as_completed
 from concurrent.futures.thread import ThreadPoolExecutor
-from functools import partial
-from pprint import pprint
 import re
+import functools
 import tqdm
 import os
 from diaparser.parsers import Parser
+from argparse import ArgumentParser
 import sys
 sys.path.append("./")
 
@@ -85,10 +84,10 @@ def complete_obl(tokens, start):
     return noun, prep
 
 
-def parse_line(line, saveTo):
+def parse_line(line, parser, outfile):
     try:
         sentence = parser.predict(line, text="en").sentences[0]
-    except:
+    except Exception as E:
         return
 
     tokens = sentence.to_tokens()
@@ -111,84 +110,39 @@ def parse_line(line, saveTo):
         data["n2"] = n2
         data["prep"] = pp
 
-    # parsed_lines.append(data)
     if data['verb'] is not None:
-        with open(saveTo, 'a+') as file:
+        with open(outfile, 'a+') as file:
             line = None
             if data['n2'] is not None and data['prep'] is not None:
-                line = f"{data['verb']}, {data['n1']}, {data['prep']}, {data['n2']}"
+                line = f"{data['verb']}\t{data['n1']}\t{data['prep']}\t{data['n2']}"
             else:
-                line = f"{data['verb']}, {data['n1']},,"
+                line = f"{data['verb']}\t{data['n1']}"
 
             file.write(f"{line}\n")
 
 
 if __name__ == "__main__":
 
-    # textPath = "training/1342-0.txt"
-    textPath = "/home/psoga/Documents/wikipedia/split_more"
-    saveTo = "/home/psoga/Documents/school/nlp/NLPProject/training/depTuples1.csv"
+    p = ArgumentParser()
+    p.add_argument('--infile')
+    p.add_argument('--outfile')
+    args = p.parse_args()
 
-    for i, f in enumerate(os.scandir(textPath)):
-        print(f'parsing {i}: {f.name}')
-        with open(f, "r") as file:
-            block = file.read()
-        # Split lines by ., ?, !, and any of the previous followed by a quote.
-        lines = re.split(r'(?<!\w\.\w.)(?<![A-Z][a-z]\.)(?<=\.|\?)\s', block)
+    os.environ['CUDA_VISIBLE_DEVICES'] = ''
+    parser = Parser.load(lang="en")
+    # for i, f in enumerate(os.scandir(args.infile)):
+    # print(f'parsing {i}: {f.name}')
+    with open(args.infile, "r") as file:
+        block = file.read()
+    # Split lines by ., ?, !, and any of the previous followed by a quote.
+    lines = re.split(r'(?<!\w\.\w.)(?<![A-Z][a-z]\.)(?<=\.|\?)\s', block)
 
-        parser = Parser.load(lang="en")
-        parsed_line_data = []
+    parsed_line_data = []
 
-        with tqdm.tqdm(len(lines)) as progress:
-            with ThreadPoolExecutor(max_workers=10000) as executor:
-                # results = list(tqdm.tqdm(executor.map(
-                #     partial(parse_line, saveTo=saveTo), lines), total=len(lines)))
-                results = list(tqdm.tqdm(executor.map(
-                    lambda line: parse_line(line, saveTo), lines), total=len(lines)))
-        # for pld in parsed_line_data:
-        #     if pld['verb'] is not None:
-        #         with open(saveTo, 'a+') as file:
-        #             line = None
-        #             if pld['n2'] is not None and pld['prep'] is not None:
-        #                 line = f"{pld['verb']}, {pld['n1']}, {pld['prep']}, {pld['n2']}"
-        #             else:
-        #                 line = f"{pld['verb']}, {pld['n1']},,"
-        #             file.write(f"{line}\n")
+    partial = functools.partial(
+        parse_line, parser=parser, outfile=args.outfile)
 
-        #         file.write(f"{line}\n")
-        # for line in lines:
-        #     try:
-        #         sentence = parser.predict(line, text="en").sentences[0]
-        #     except Exception as E:
-        #         print(E)
-        #         continue
-
-        #     tokens = sentence.to_tokens()
-
-        #     data = {
-        #         "n1": None,
-        #         "n2": None,
-        #         "verb": None,
-        #         "prep": None
-        #     }
-
-        #     if "obj" in sentence.rels:
-        #         n1, verb = complete_obj(tokens, sentence.rels.index("obj") + 1)
-
-        #         data["n1"] = n1
-        #         data["verb"] = verb
-
-        #     if "obl" in sentence.rels:
-        #         n2, pp = complete_obl(tokens, sentence.rels.index("obl") + 1)
-        #         data["n2"] = n2
-        #         data["prep"] = pp
-        #     if data['verb'] is not None:
-        #         with open(saveTo, 'a+') as file:
-        #             line = None
-        #             if data['n2'] is not None and data['prep'] is not None:
-        #                 line = f"{data['verb']}, {data['n1']}, {data['prep']}, {data['n2']}"
-        #             else:
-        #                 line = f"{data['verb']}, {data['n1']},,"
-
-        #             file.write(f"{line}\n")
-        #             print('saving...', line)
+    with tqdm.tqdm(len(lines)) as progress:
+        with ThreadPoolExecutor(max_workers=100) as executor:
+            results = list(tqdm.tqdm(executor.map(
+                partial, lines), total=len(lines)))
