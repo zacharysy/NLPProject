@@ -8,10 +8,11 @@ from itertools import groupby
 from random import choice
 from typing import List
 from dataclasses import dataclass
-from BaseAgent import DQAgent
 from random import randint, random
 from util import Vocab
 from argparse import ArgumentParser
+from DQAgent import DQAgent
+from pprint import pprint
 
 
 def contains_digit(in_str: str) -> bool:
@@ -53,7 +54,7 @@ def read_data():
     actions = Vocab()
     for line in open('./zork_transcript.txt', 'r'):
         if line.startswith('>'):
-            actions |= line[1:].strip().split(' ')
+            actions.add(line[1:].strip())
         words |= line.strip().split(' ')
     words |= (['<UNK>', '<CLS>'])
     return words, actions
@@ -75,7 +76,9 @@ def random_sample(iterable, n):
 
 def mini_sample(rho, replay_memories: List[ReplayMemory]) -> List[ReplayMemory]:
     num_replay_mems = len(replay_memories)
-    high_rhos, low_rhos = groupby(replay_memories, lambda x: x.p_t == 1)
+    high_rhos, low_rhos = [], []
+    for mem in replay_memories:
+        (high_rhos if mem.p_t == 1 else low_rhos).append(mem)
     high_rho_ratio = len(list(high_rhos))/num_replay_mems
 
     if high_rho_ratio <= rho:
@@ -93,14 +96,14 @@ def main(args):
     epsilon = 0.1
     rho = 0.25
     gamma = 0.5
-    agent = DQAgent(word_vocab,
-                    action_vocab, dims)
+    agent = DQAgent(word_vocab, action_vocab, dims)
     replay_mems: List[ReplayMemory] = []
 
     optim = torch.optim.Adam(agent.dqn.parameters(), lr=0.01)
     loss_fn = torch.nn.MSELoss()
 
-    for _ in range(args.episodes):
+    for ep in range(args.episodes):
+        print('episode: ', ep)
         total_loss = 0
         env = textworld.start(zorkPath)
         game_state = env.reset()
@@ -119,8 +122,9 @@ def main(args):
             game_state, reward, done = env.step(command)
 
             priority = 1 if reward > 0 else 0
+            feedback = preprocess_line(game_state['feedback'])
             replay_mems.append(ReplayMemory(
-                desc, action_num, reward, game_state if not done else 'done', priority))
+                desc, action_num, reward, feedback if not done else 'done', priority))
 
             train_mems = mini_sample(rho, replay_mems)
 
