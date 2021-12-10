@@ -93,8 +93,9 @@ def main(args):
     epsilon = 0.1
     rho = 0.25
     gamma = 0.5
-    agent = DQAgent(word_vocab, action_vocab, dims)
-    replay_memories: List[ReplayMemory] = []
+    agent = DQAgent(word_vocab,
+                    action_vocab, dims)
+    replay_mems: List[ReplayMemory] = []
 
     optim = torch.optim.Adam(agent.dqn.parameters(), lr=0.01)
     loss_fn = torch.nn.MSELoss()
@@ -105,6 +106,7 @@ def main(args):
         game_state = env.reset()
         reward, done, moves = 0, False, 0
         desc = ['<CLS>', *preprocess_line(game_state['raw'])]
+
         for t in range(maxMoves):
             encoding = agent.dqn.encode(desc)
             if random() < epsilon:
@@ -115,11 +117,13 @@ def main(args):
 
             command = agent.callModel(action_num)
             game_state, reward, done = env.step(command)
+
             priority = 1 if reward > 0 else 0
-            replay_memories.append(ReplayMemory(
+            replay_mems.append(ReplayMemory(
                 desc, action_num, reward, game_state if not done else 'done', priority))
 
-            train_mems = mini_sample(rho, replay_memories)
+            train_mems = mini_sample(rho, replay_mems)
+
             for t in train_mems:
                 r = torch.tensor(t.r_t)
                 if t.s_next == 'done':
