@@ -143,6 +143,6 @@ if __name__ == "__main__":
         parse_line, parser=parser, outfile=args.outfile)
 
     with tqdm.tqdm(len(lines)) as progress:
-        with ThreadPoolExecutor(max_workers=100) as executor:
+        with ThreadPoolExecutor(max_workers=50) as executor:
             results = list(tqdm.tqdm(executor.map(
                 partial, lines), total=len(lines)))
