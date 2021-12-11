@@ -9,7 +9,7 @@ from random import choice
 from typing import List
 from dataclasses import dataclass
 from random import randint, random
-from util import Vocab
+from util import Vocab, get_device
 from argparse import ArgumentParser
 from DQAgent import DQAgent
 from pprint import pprint
@@ -55,7 +55,8 @@ def read_data():
     for line in open('./zork_transcript.txt', 'r'):
         if line.startswith('>'):
             actions.add(line[1:].strip())
-        words |= line.strip().split(' ')
+        else:
+            words |= preprocess_line(line)
     words |= (['<UNK>', '<CLS>'])
     return words, actions
 
@@ -82,18 +83,23 @@ def mini_sample(rho, replay_memories: List[ReplayMemory]) -> List[ReplayMemory]:
     high_rho_ratio = len(list(high_rhos))/num_replay_mems
 
     if high_rho_ratio <= rho:
-        return random_sample(replay_memories, 1000)
+        return random_sample(replay_memories, 64)
 
     target = int(len(num_replay_mems) * high_rho_ratio)
     train_memories = random_sample(
-        high_rhos, target) + random_sample(low_rhos, 1000 - target)
+        high_rhos, target) + random_sample(low_rhos, 64 - target)
     return train_memories
+
+
+def bad_feedback(feedback):
+    f = ' '.join(feedback)
+    return "you don't" in f or "you can't" in f or "i can't" in f or "?" in f or len(feedback) < 10
 
 
 def main(args):
     word_vocab, action_vocab = read_data()
     dims = 200
-    epsilon = 0.1
+    epsilon = 0.8
     rho = 0.25
     gamma = 0.5
     agent = DQAgent(word_vocab, action_vocab, dims)
@@ -107,44 +113,65 @@ def main(args):
         total_loss = 0
         env = textworld.start(zorkPath)
         game_state = env.reset()
+        prev_reward = 0
         reward, done, moves = 0, False, 0
         desc = ['<CLS>', *preprocess_line(game_state['raw'])]
 
         for t in range(maxMoves):
             encoding = agent.dqn.encode(desc)
+            print(desc)
             if random() < epsilon:
-                action_num = randint(0, len(action_vocab))
+                print('exploring...')
+                action_num = randint(0, len(action_vocab)-1)
             else:
+                print('exploiting...')
                 dist = agent.dqn(encoding)
                 action_num = dist.argmax()
 
             command = agent.callModel(action_num)
+            print('command: ', command)
             game_state, reward, done = env.step(command)
 
-            priority = 1 if reward > 0 else 0
+            r = reward - prev_reward  # since reward is the reward so far, not reward of action
+            priority = 1 if r > 0 else 0
+
             feedback = preprocess_line(game_state['feedback'])
+
+            if done:
+                s = 'done'
+            elif not bad_feedback(feedback):
+                r = 1
+                desc = ['<CLS>', *feedback]
+                s = feedback
+            else:
+                print('bad...')
+                s = desc
+
+            print(feedback, r)
             replay_mems.append(ReplayMemory(
-                desc, action_num, reward, feedback if not done else 'done', priority))
+                desc, action_num, r, s, priority))
 
-            train_mems = mini_sample(rho, replay_mems)
+            prev_reward = reward
 
-            for t in train_mems:
-                r = torch.tensor(t.r_t)
-                if t.s_next == 'done':
-                    y = r
-                else:
-                    next_enc = agent.dqn.encode(t.s_next)
-                    curr_enc = agent.dqn.encode(t.s_t)
+            if t % 4 == 0:
+                train_mems = mini_sample(rho, replay_mems)
+                for t in train_mems:
+                    r = torch.tensor(t.r_t, device=get_device())
+                    if t.s_next == 'done':
+                        y = r
+                    else:
+                        next_enc = agent.dqn.encode(t.s_next)
+                        curr_enc = agent.dqn.encode(t.s_t)
 
-                    max_r = torch.max(agent.dqn(next_enc))
-                    y = r + (gamma * max_r)
-                loss = loss_fn(y, agent.dqn(curr_enc)[t.a_t])
+                        max_r = torch.max(agent.dqn(next_enc))
+                        y = r + (gamma * max_r)
+                    loss = loss_fn(y, agent.dqn(curr_enc)[t.a_t])
+                    optim.zero_grad()
+                    loss.backward()
+                    optim.step()
 
-                optim.zero_grad()
-                loss.backward()
-                optim.step()
-
-                total_loss += loss.detach().item()
+                    total_loss += loss.detach().item()
+            print()
 
 
 if __name__ == "__main__":
