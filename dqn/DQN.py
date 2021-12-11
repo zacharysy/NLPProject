@@ -43,12 +43,11 @@ class Encoder(torch.nn.Module):
 
 
 class FF(torch.nn.Module):
-    def __init__(self, action_vocab: Vocab, dims):
+    def __init__(self, num_actions, dims):
         super().__init__()
-        self.command_vocab = action_vocab
         self.ll1 = LinearLayer(input_dims=dims, output_dims=dims)
         self.ll2 = LinearLayer(input_dims=dims, output_dims=dims)
-        self.ll3 = LinearLayer(input_dims=dims, output_dims=len(action_vocab))
+        self.ll3 = LinearLayer(input_dims=dims, output_dims=num_actions)
         self.relu = torch.nn.ReLU()
 
     def forward(self, encoding):
@@ -68,7 +67,7 @@ class DQN(torch.nn.Module):
         self.dims = dims
 
         self.encoder = Encoder(word_vocab, action_vocab, dims)
-        self.FF = FF(action_vocab, dims)
+        self.FF = FF(len(action_vocab), dims)
 
     def encode(self, words):
         return self.encoder.encode(words)
