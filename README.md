@@ -1,5 +1,20 @@
 # NLP Project
 
+
+## Requirements
+- TextWorld requires non-python dependencies depending on the system
+	- see more in the [TextWorld git repo][TW]
+
+```
+# macOS
+brew install libffi curl git
+
+# Debian/Ubuntu
+sudo apt update && sudo apt install build-essential libffi-dev python3-dev curl git
+```
+
+- Install all the other dependencies using `setup.sh`
+
 ## Baseline
 
 ### Outline
@@ -15,12 +30,12 @@
    model which learns `P(verb | noun)` from the corpus created
    in the previous steps
 5. Implement an agent using the
-   [TextWorld](https://github.com/microsoft/textworld)
+   [TextWorld][TW]
    library which iterates through the input for a given scenario,
    samples from `verb' = P(verb | noun)`, and attempts to submit
    `verb' noun` as a command for a given room
 6. Test the agent on the
-   [TextWorld](https://github.com/microsoft/textworld)
+   [TextWorld][TW]
    benchmark.
 
 Step Breakdown:
@@ -31,7 +46,6 @@ Step Breakdown:
 
 ### How To Run
 - Note: Run all commands from the root folder
-- Install dependencies using `setup.sh`
 - To generate games used for the benchmark:
     - `python3 benchmark/benchmark.py --generate`
 - To run the benchmark on the baseline:
@@ -51,3 +65,6 @@ def __getattr__(self, name):
     else:
         raise AttributeError()
 ```
+
+
+[TW]: https://github.com/microsoft/textworld
