@@ -130,19 +130,17 @@ if __name__ == "__main__":
 
     os.environ['CUDA_VISIBLE_DEVICES'] = ''
     parser = Parser.load(lang="en")
-    # for i, f in enumerate(os.scandir(args.infile)):
-    # print(f'parsing {i}: {f.name}')
-    with open(args.infile, "r") as file:
-        block = file.read()
+    for i, f in enumerate(os.scandir(args.infile)):
+        print(f'parsing {i}: {f.name}')
+        with open(f, "r") as file:
+            block = file.read()
     # Split lines by ., ?, !, and any of the previous followed by a quote.
-    lines = re.split(r'(?<!\w\.\w.)(?<![A-Z][a-z]\.)(?<=\.|\?)\s', block)
+        lines = re.split(r'(?<!\w\.\w.)(?<![A-Z][a-z]\.)(?<=\.|\?)\s', block)
 
-    parsed_line_data = []
+        partial = functools.partial(
+            parse_line, parser=parser, outfile=args.outfile)
 
-    partial = functools.partial(
-        parse_line, parser=parser, outfile=args.outfile)
-
-    with tqdm.tqdm(len(lines)) as progress:
-        with ThreadPoolExecutor(max_workers=50) as executor:
-            results = list(tqdm.tqdm(executor.map(
-                partial, lines), total=len(lines)))
+        with tqdm.tqdm(len(lines)) as progress:
+            with ThreadPoolExecutor(max_workers=30) as executor:
+                results = list(tqdm.tqdm(executor.map(
+                    partial, lines), total=len(lines)))
