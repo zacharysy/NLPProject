@@ -5,6 +5,8 @@ from pprint import pprint
 
 EOS = '<EOS>'
 E = 'E'
+CLS = "<CLS>"
+UNK = "<UNK>"
 
 
 class Vocab(collections.abc.MutableSet):
