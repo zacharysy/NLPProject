@@ -6,3 +6,5 @@ tmp/
 */games/*
 */__pycache__/*
 novels.txt
+*.magnitude
+depTuples.csv
