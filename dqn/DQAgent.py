@@ -1,12 +1,12 @@
 import textworld
 import torch
-from DQN import DQN
+from dqn.MA_DQN import MA_DQN
 
 
 class DQAgent(textworld.Agent):
     def __init__(self, word_vocab, action_vocab, dims, dqn_weights=None):
-        self.dqn = DQN(word_vocab, action_vocab,
-                       dims) if not dqn_weights else torch.load(dqn_weights)
+        self.dqn = MA_DQN(word_vocab, action_vocab,
+                          dims) if not dqn_weights else torch.load(dqn_weights)
         self.state = []
 
     def act(self, game_state, reward, done):
