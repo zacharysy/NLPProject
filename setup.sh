@@ -14,7 +14,13 @@ pip install -U textworld
 pip install -U tqdm
 pip install -U bs4
 pip install -U diaparser # Dependency Parser
-pip install -U magnitude # Word Embeddings helper
+pip install -U pymagnitude # Word Embeddings helper
 pip install -U nltk
 python -m nltk.downloader all
 python -m spacy download en_core_web_trf
+python -m spacy download en
+
+# note - pymagnitude seems to have issues with spacy, may need to uninstall
+
+# Download a word embedding
+curl http://magnitude.plasticity.ai/glove/medium/glove.6B.50d.magnitude > ./training/glove_weights.magnitude
