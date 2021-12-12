@@ -11,7 +11,6 @@ sys.path.append("./")
 from diaparser.parsers import Parser
 from nltk.stem.wordnet import WordNetLemmatizer
 from pprint import pprint
-from baseline.utils import convert_verb
 import re
 
 def get_children(tokens,id):
@@ -80,7 +79,7 @@ def complete_obl(tokens, start):
 
 if __name__ == "__main__":
 
-    textPath =  "training/1342-0.txt"
+    textPath =  "training/pg28885.txt"
     saveTo = "training/depTuples.csv"
 
     with open(textPath, "r") as file:
@@ -114,7 +113,7 @@ if __name__ == "__main__":
             n1, verb = complete_obj(tokens, sentence.rels.index("obj") + 1)
 
             data["n1"] = n1
-            data["verb"] = verb
+            data["verb"] = verb.lower()
 
         if "obl" in sentence.rels:
             n2, pp = complete_obl(tokens, sentence.rels.index("obl") + 1)

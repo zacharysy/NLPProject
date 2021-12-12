@@ -2,7 +2,6 @@ from __future__ import annotations
 import sys
 sys.path.append("./")
 
-from baseline.utils import extract_nouns
 from baseline.nounverb import NounVerb
 import random
 import re
