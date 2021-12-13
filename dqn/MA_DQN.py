@@ -63,7 +63,7 @@ class MA_DQN(torch.nn.Module):
         self.action_vocab = action_vocab
         self.dims = dims
 
-        self.encoder = Encoder(word_vocab, action_vocab, dims)
+        self.encoder = Encoder(word_vocab,  dims)
         self.FF = FF(len(action_vocab), dims)
 
     def encode(self, words):

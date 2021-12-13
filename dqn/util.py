@@ -1,3 +1,8 @@
+from dataclasses import dataclass
+from random import choice
+import re
+from typing import List
+from textworld.helpers import start
 import torch
 import collections
 from pprint import pprint
@@ -7,6 +12,65 @@ EOS = '<EOS>'
 E = 'E'
 CLS = "<CLS>"
 UNK = "<UNK>"
+
+
+def contains_digit(in_str: str) -> bool:
+    """
+    This function checks if a string contains any numbers.
+    """
+
+    return sum([i.isdigit() for i in in_str]) > 0
+
+
+def preprocess_line(in_str: str, start_symbol: str = None) -> List[str]:
+    """
+    This function is used to preprocess a single line of the input.
+    """
+
+    # Add space to punctuation, quotes, and parentheses
+    in_str = re.sub('([".,!?()])', r' \1 ', in_str)
+
+    # Strip and split
+    line = in_str.lower().split()
+
+    # Filter out any numbers
+    line = ['<num>' if contains_digit(i) else i for i in line]
+
+    # Add a start symbol
+    if start_symbol is not None:
+        line = [start_symbol] + line
+
+    return line
+
+
+# for debugging
+
+
+def read_data():
+    words = Vocab()
+    actions = Vocab()
+    v = ""
+    for i, line in enumerate(open('./zork_transcript.txt', 'r')):
+        if line.startswith('>'):
+            actions.add(line[1:].strip())
+            v = ' '.join(preprocess_line(v.strip(), start_symbol=CLS))
+            v = ""
+        else:
+            words |= preprocess_line(line, start_symbol=CLS)
+            if i != 0:
+                v += line
+
+    words |= (['<UNK>', '<CLS>'])
+    return words, actions
+
+
+@dataclass
+class ReplayMemory:
+    s_t: str                # state
+    a_t: int                # action
+    r_t: int                # reward
+    s_next: str             # next state
+    p_t: int                # priority
 
 
 class Vocab(collections.abc.MutableSet):
@@ -49,9 +113,16 @@ class Vocab(collections.abc.MutableSet):
         return self.num_to_word[num]
 
 
+def generate_actions(correct_action, action_vocab: Vocab):
+    options = [
+        correct_action, *[choice(action_vocab.num_to_word) for _ in range(3)]
+    ]
+    return options
+
+
 def get_device():
-    # if torch.cuda.is_available():
-    #     return 'cuda'
+    if torch.cuda.is_available():
+        return 'cuda'
     return 'cpu'
 
 
@@ -66,17 +137,6 @@ def progress(iterable):
             return iterable
     else:
         return iterable
-
-
-def read_data(path):
-    return [(sentence, act) for sentence, act in (line.strip().split('\t')
-            for line in open(path))]
-
-
-def unkify(path):
-    counter = collections.Counter()
-    for sentence, _ in read_data(path):
-        counter.update(sentence.split(' '))
 
 
 def read_labels(file):
