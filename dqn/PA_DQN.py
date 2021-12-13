@@ -1,13 +1,13 @@
-from typing import List
 import torch
-from layers import Embedding, LinearLayer, SelfAttention
-from util import get_device, Vocab, UNK
+import pymagnitude
+from layers import LinearLayer, SelfAttention
+from util import get_device
 
 
 class Encoder(torch.nn.Module):
-    def __init__(self, word_vocab: Vocab, action_vocab: Vocab, dims: int):
+    def __init__(self, dims, embedding_path):
         super().__init__()
-        # self.emb = Embedding(vocab_size=len(word_vocab), output_dims=dims)
+        self.embeddings = pymagnitude.Magnitude(embedding_path)
         self.fpos = torch.nn.Parameter(
             torch.empty(dims, dims, device=get_device()))
 
@@ -19,14 +19,11 @@ class Encoder(torch.nn.Module):
         self.ll2 = LinearLayer(input_dims=dims, output_dims=dims)
         self.ll3 = LinearLayer(input_dims=dims, output_dims=dims)
 
-        self.word_vocab = word_vocab
-
         torch.nn.init.normal_(self.fpos, std=.01, mean=0.0)
 
-    def encode(self, words: List[str]):
-        word_nums = torch.tensor([self.word_vocab.numberize(
-            w if w in self.word_vocab else UNK) for w in words], device=get_device())
-        v = self.emb(word_nums) + self.fpos[:len(word_nums)]
+    def encode(self, words):
+        v = torch.tensor(self.embeddings.query(words), device=get_device())
+        v += self.fpos[:len(words)]
 
         sa1 = self.sa1(v)
         ll1 = self.ll1(sa1)
@@ -37,3 +34,37 @@ class Encoder(torch.nn.Module):
         sa3 = self.sa3(ll2)
         ll3 = self.ll3(sa3)
         return ll3[0]
+
+
+class FF(torch.nn.Module):
+    def __init__(self, dims: int):
+        super().__init__()
+        self.ll1 = LinearLayer(input_dims=dims, output_dims=dims)
+        self.ll2 = LinearLayer(input_dims=dims, output_dims=dims)
+        self.ll3 = LinearLayer(input_dims=dims, output_dims=1)
+        self.relu = torch.nn.ReLU()
+
+    def forward(self, encoding):
+        ll1 = self.ll1(encoding)
+        relu1 = self.relu(ll1)
+        ll2 = self.ll2(relu1)
+        relu2 = self.relu(ll2)
+        ll3 = self.ll3(relu2)
+        return ll3
+
+
+class PA_DQN(torch.nn.Module):
+    def __init__(self, dims, embedding_path):
+        super().__init__()
+        self.state_encoder = Encoder(dims, embedding_path)
+        self.action_encoder = Encoder(dims, embedding_path)
+        self.ff = FF(2 * dims)
+
+    def encode(self, words, action):
+        state_enc = self.state_encoder.encode(words)
+        action_enc = self.action_encoder.encode(action)
+        cat = torch.cat((state_enc, action_enc))
+        return cat
+
+    def forward(self, encoding):
+        return self.ff.forward(encoding)
