@@ -9,7 +9,7 @@ class Encoder(torch.nn.Module):
         super().__init__()
         self.embeddings = pymagnitude.Magnitude(embedding_path)
         self.fpos = torch.nn.Parameter(
-            torch.empty(2*dims, dims, device=get_device()))
+            torch.empty(3*dims, dims, device=get_device()))
 
         self.sa1 = SelfAttention(dims=dims)
         self.sa2 = SelfAttention(dims=dims)

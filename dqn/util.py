@@ -1,5 +1,5 @@
 from dataclasses import dataclass
-from random import choice
+from random import choice, sample
 import re
 from typing import List
 from textworld.helpers import start
@@ -66,11 +66,57 @@ def read_data():
 
 @dataclass
 class ReplayMemory:
-    s_t: str                # state
+    s_t: List[str]          # state
     a_t: int                # action
     r_t: int                # reward
-    s_next: str             # next state
-    p_t: int                # priority
+    s_next: List[str]       # next state
+    priority: int           # priority
+
+
+def random_sample(iterable, n):
+    num_mems = len(iterable)
+    k = num_mems if n > num_mems else n
+    return sample(iterable, k)
+
+
+class ReplayMemoryStore():
+    def __init__(self, batch_size, rho, max_size):
+        self.store: List[ReplayMemory] = []
+        self.batch_size = batch_size
+        self.rho = rho
+        self.max_size = max_size
+
+    def add(self, r: ReplayMemory):
+        if len(self.store) <= self.max_size:
+            self.store.append(r)
+            return
+        n_extra = len(self.store) - self.max_size
+        to_remove = random_sample(self.store, n_extra)
+        for r in to_remove:
+            self.store.remove(r)
+
+    def mini_sample(self):
+        num_mems = len(self.store)
+        high_rhos, low_rhos = [], []
+
+        for mem in self.store:
+            (high_rhos if mem.priority == 1 else low_rhos).append(mem)
+        high_rho_ratio = len(list(high_rhos))/num_mems
+
+        if self.batch_size > len(self.store):
+            return random_sample(self.store, len(self.store))
+
+        if high_rho_ratio <= self.rho:
+            train_mems = high_rhos
+            while len(train_mems) < self.batch_size:
+                train_mems.append(choice(low_rhos))
+            return train_mems
+
+        target = int(len(num_mems) * high_rho_ratio)
+        high_rho_mems = random_sample(high_rhos, target)
+        low_rho_mems = random_sample(low_rhos, self.batch_size - target)
+
+        return high_rho_mems + low_rho_mems
 
 
 class Vocab(collections.abc.MutableSet):
@@ -121,8 +167,8 @@ def generate_actions(correct_action, action_vocab: Vocab):
 
 
 def get_device():
-    if torch.cuda.is_available():
-        return 'cuda'
+    # if torch.cuda.is_available():
+    #     return 'cuda'
     return 'cpu'
 
 
@@ -137,31 +183,3 @@ def progress(iterable):
             return iterable
     else:
         return iterable
-
-
-def read_labels(file):
-    # from homework 4
-    """Read words and labels from file.
-
-    Parameters:
-    - file: file object (not filename!) to read from
-
-    The format of the file should be one sentence per line. Each line
-    is of the form
-
-    word1:label1 word2:label2 ...
-    """
-
-    ret = []
-    for line in file:
-        words = []
-        labels = []
-        for wordlabel in line.split():
-            try:
-                word, label = wordlabel.rsplit(':', 1)
-            except ValueError:
-                raise ValueError(f'invalid token {wordlabel}')
-            words.append(word)
-            labels.append(label)
-        ret.append((words, labels))
-    return ret

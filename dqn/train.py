@@ -1,12 +1,13 @@
 import textworld
 import sys
 import torch
+import tqdm
 
 from random import choice
 from typing import List
 from dataclasses import dataclass
 from random import randint, random
-from util import CLS, ReplayMemory, Vocab, get_device, preprocess_line, read_data
+from util import CLS, ReplayMemory, ReplayMemoryStore, Vocab, get_device, preprocess_line, read_data
 from argparse import ArgumentParser
 from DQAgent import MA_DQAgent, PA_DQAgent
 from pprint import pprint
@@ -26,7 +27,7 @@ def mini_sample(rho, replay_memories: List[ReplayMemory]) -> List[ReplayMemory]:
     num_replay_mems = len(replay_memories)
     high_rhos, low_rhos = [], []
     for mem in replay_memories:
-        (high_rhos if mem.p_t == 1 else low_rhos).append(mem)
+        (high_rhos if mem.priority == 1 else low_rhos).append(mem)
     high_rho_ratio = len(list(high_rhos))/num_replay_mems
 
     if high_rho_ratio <= rho:
@@ -46,25 +47,25 @@ def bad_feedback(feedback):
 
 def main(args):
     word_vocab, action_vocab = read_data()
-    dims = 200
-    epsilon = 0.8
+    dims = 50
+    batch_size = 10
     rho = 0.25
-    gamma = 0.5
-    decay = 0.9999
+    max_size = 100000
     if args.model == 'max':
         agent = MA_DQAgent(word_vocab=word_vocab,
-                           action_vocab=action_vocab, dims=dims, epsilon=epsilon)
+                           action_vocab=action_vocab, dims=dims)
     else:
         agent = PA_DQAgent(
-            dims=dims, action_vocab=action_vocab, embedding_path=args.embpath, epsilon=epsilon)
-
-    replay_mems: List[ReplayMemory] = []
+            dims=dims, action_vocab=action_vocab, embedding_path=args.embpath,
+            max_moves=maxMoves)
 
     optim = torch.optim.Adam(agent.dqn.parameters(), lr=0.01)
     loss_fn = torch.nn.MSELoss()
+    replay_store: ReplayMemoryStore = ReplayMemoryStore(
+        batch_size=batch_size, rho=rho, max_size=max_size)
 
-    for ep in range(args.episodes):
-        print('episode: ', ep)
+    for episode in range(args.episodes):
+        ep_reward = 0
         total_loss = 0
         env = textworld.start(zorkPath)
         game_state = env.reset()
@@ -73,11 +74,11 @@ def main(args):
         desc = preprocess_line(game_state['raw'], start_symbol=CLS)
         agent.set_epsilon()
 
-        for t in range(maxMoves):
+        for t in tqdm.tqdm(range(maxMoves)):
             action = agent.callModel(desc)
 
-            print('command: ', action)
-            game_state, reward, done = env.step(action)
+            # print('command: ', action)
+            game_state, reward, done = env.step(' '.join(action))
 
             r = reward - prev_reward
             priority = 1 if r > 0 else 0
@@ -86,25 +87,31 @@ def main(args):
                 game_state['feedback'], start_symbol=CLS)
 
             if done:
-                s = 'done'
+                s = ['done']
+                r += 10
             elif not bad_feedback(feedback):
-                r = 1
+                r += 1
                 desc = feedback
                 s = feedback
             else:
-                print('bad...')
+                # print('bad...')
                 r = -0.1
                 s = desc
 
-            print(feedback, r)
-            replay_mems.append(ReplayMemory(
+            ep_reward += r
+
+            # print(feedback, r)
+            replay_store.add(ReplayMemory(
                 desc, action, r, s, priority))
 
             prev_reward = reward
-            epsilon *= decay
+
+            if done:
+                print(f"episode {episode}: {reward}")
+                break
 
             if t % 4 == 0:
-                train_mems = mini_sample(rho, replay_mems)
+                train_mems = replay_store.mini_sample()
                 for t in train_mems:
                     r = torch.tensor(t.r_t, device=get_device())
                     if t.s_next == 'done':
@@ -116,7 +123,8 @@ def main(args):
                     optim.step()
 
                     total_loss += loss.detach().item()
-            print()
+        print(f"episode {episode}: {reward}")
+    agent.save('./pa_dqn.pt')
 
 
 if __name__ == "__main__":
