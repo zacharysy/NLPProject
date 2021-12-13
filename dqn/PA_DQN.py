@@ -9,7 +9,7 @@ class Encoder(torch.nn.Module):
         super().__init__()
         self.embeddings = pymagnitude.Magnitude(embedding_path)
         self.fpos = torch.nn.Parameter(
-            torch.empty(dims, dims, device=get_device()))
+            torch.empty(2*dims, dims, device=get_device()))
 
         self.sa1 = SelfAttention(dims=dims)
         self.sa2 = SelfAttention(dims=dims)
@@ -22,7 +22,8 @@ class Encoder(torch.nn.Module):
         torch.nn.init.normal_(self.fpos, std=.01, mean=0.0)
 
     def encode(self, words):
-        v = torch.tensor(self.embeddings.query(words), device=get_device())
+        v = torch.tensor(self.embeddings.query(
+            words), device=get_device())
         v += self.fpos[:len(words)]
 
         sa1 = self.sa1(v)

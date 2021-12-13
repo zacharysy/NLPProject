@@ -1,73 +1,20 @@
-import collections
 import textworld
 import sys
 import torch
-import re
 
-from itertools import groupby
 from random import choice
 from typing import List
 from dataclasses import dataclass
 from random import randint, random
-from util import Vocab, get_device
+from util import CLS, ReplayMemory, Vocab, get_device, preprocess_line, read_data
 from argparse import ArgumentParser
-from DQAgent import DQAgent
+from DQAgent import MA_DQAgent, PA_DQAgent
 from pprint import pprint
-
-
-def contains_digit(in_str: str) -> bool:
-    """
-    This function checks if a string contains any numbers.
-    """
-
-    return sum([i.isdigit() for i in in_str]) > 0
-
-
-def preprocess_line(in_str: str, start_symbol: str = None) -> List[str]:
-    """
-    This function is used to preprocess a single line of the input.
-    """
-
-    # Add space to punctuation, quotes, and parentheses
-    in_str = re.sub('([".,!?()])', r' \1 ', in_str)
-
-    # Strip and split
-    line = in_str.lower().split()
-
-    # Filter out any numbers
-    line = ['<num>' if contains_digit(i) else i for i in line]
-
-    # Add a start symbol
-    if start_symbol is not None:
-        line = [start_symbol] + line
-
-    return line
 
 
 sys.path.append("./")
 zorkPath = "../benchmark/zork1.z5"
 maxMoves = 1000
-
-
-def read_data():
-    words = Vocab()
-    actions = Vocab()
-    for line in open('./zork_transcript.txt', 'r'):
-        if line.startswith('>'):
-            actions.add(line[1:].strip())
-        else:
-            words |= preprocess_line(line)
-    words |= (['<UNK>', '<CLS>'])
-    return words, actions
-
-
-@dataclass
-class ReplayMemory:
-    s_t: str                # state
-    a_t: int                # action
-    r_t: int                # reward
-    s_next: str             # next state
-    p_t: int                # priority
 
 
 def random_sample(iterable, n):
@@ -93,7 +40,8 @@ def mini_sample(rho, replay_memories: List[ReplayMemory]) -> List[ReplayMemory]:
 
 def bad_feedback(feedback):
     f = ' '.join(feedback)
-    return "you don't" in f or "you can't" in f or "i can't" in f or "?" in f or len(feedback) < 10
+    return "you don't" in f or "you can't" in f or "i don't" in f or \
+        "i can't" in f or "?" in f or len(feedback) < 10
 
 
 def main(args):
@@ -102,7 +50,14 @@ def main(args):
     epsilon = 0.8
     rho = 0.25
     gamma = 0.5
-    agent = DQAgent(word_vocab, action_vocab, dims)
+    decay = 0.9999
+    if args.model == 'max':
+        agent = MA_DQAgent(word_vocab=word_vocab,
+                           action_vocab=action_vocab, dims=dims, epsilon=epsilon)
+    else:
+        agent = PA_DQAgent(
+            dims=dims, action_vocab=action_vocab, embedding_path=args.embpath, epsilon=epsilon)
+
     replay_mems: List[ReplayMemory] = []
 
     optim = torch.optim.Adam(agent.dqn.parameters(), lr=0.01)
@@ -115,43 +70,38 @@ def main(args):
         game_state = env.reset()
         prev_reward = 0
         reward, done, moves = 0, False, 0
-        desc = ['<CLS>', *preprocess_line(game_state['raw'])]
+        desc = preprocess_line(game_state['raw'], start_symbol=CLS)
+        agent.set_epsilon()
 
         for t in range(maxMoves):
-            encoding = agent.dqn.encode(desc)
-            print(desc)
-            if random() < epsilon:
-                print('exploring...')
-                action_num = randint(0, len(action_vocab)-1)
-            else:
-                print('exploiting...')
-                dist = agent.dqn(encoding)
-                action_num = dist.argmax()
+            action = agent.callModel(desc)
 
-            command = agent.callModel(action_num)
-            print('command: ', command)
-            game_state, reward, done = env.step(command)
+            print('command: ', action)
+            game_state, reward, done = env.step(action)
 
-            r = reward - prev_reward  # since reward is the reward so far, not reward of action
+            r = reward - prev_reward
             priority = 1 if r > 0 else 0
 
-            feedback = preprocess_line(game_state['feedback'])
+            feedback = preprocess_line(
+                game_state['feedback'], start_symbol=CLS)
 
             if done:
                 s = 'done'
             elif not bad_feedback(feedback):
                 r = 1
-                desc = ['<CLS>', *feedback]
+                desc = feedback
                 s = feedback
             else:
                 print('bad...')
+                r = -0.1
                 s = desc
 
             print(feedback, r)
             replay_mems.append(ReplayMemory(
-                desc, action_num, r, s, priority))
+                desc, action, r, s, priority))
 
             prev_reward = reward
+            epsilon *= decay
 
             if t % 4 == 0:
                 train_mems = mini_sample(rho, replay_mems)
@@ -159,13 +109,8 @@ def main(args):
                     r = torch.tensor(t.r_t, device=get_device())
                     if t.s_next == 'done':
                         y = r
-                    else:
-                        next_enc = agent.dqn.encode(t.s_next)
-                        curr_enc = agent.dqn.encode(t.s_t)
-
-                        max_r = torch.max(agent.dqn(next_enc))
-                        y = r + (gamma * max_r)
-                    loss = loss_fn(y, agent.dqn(curr_enc)[t.a_t])
+                    y, prediction = agent.loss_args(r, t)
+                    loss = loss_fn(y, prediction)
                     optim.zero_grad()
                     loss.backward()
                     optim.step()
@@ -178,4 +123,6 @@ if __name__ == "__main__":
     p = ArgumentParser()
     p.add_argument("--episodes", type=int,
                    help="number of episodes to train for")
+    p.add_argument("--model", type=str, help="type of dqn to use (max or per)")
+    p.add_argument("--embpath", type=str, help="embedding path")
     main(p.parse_args())
