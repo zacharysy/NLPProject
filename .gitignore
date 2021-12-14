@@ -8,3 +8,6 @@ tmp/
 novels.txt
 *.magnitude
 depTuples.csv
+*.ckpt
+csv_data.csv
+tsv_data.csv
