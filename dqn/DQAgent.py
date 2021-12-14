@@ -76,7 +76,7 @@ class MA_DQAgent(DQAgent):
 
 class PA_DQAgent(DQAgent):
     def __init__(self, dims, embedding_path, action_vocab: Vocab, dqn_weights=None,
-                 init_epsilon=1, end_epsilon=0.2, rho=0.25, gamma=0.5, max_moves=1000):
+                 init_epsilon=1, end_epsilon=0.2, rho=0.25, gamma=0.5, transitions=1000):
         self.dqn = PA_DQN(
             dims, embedding_path) if not dqn_weights else torch.load(dqn_weights)
         self.dims = dims
@@ -86,16 +86,15 @@ class PA_DQAgent(DQAgent):
         self.end_epsilon = end_epsilon
         self.rho = rho
         self.gamma = gamma
-        self.max_moves = max_moves
+        self.transitions = transitions
         # remove when slot filler done
         self.action_vocab = action_vocab
 
     def explore(self):
         action = choice(self.action_vocab.num_to_word)
-        print('exploring...', action)
         return action.split(' ')
 
-    def exploit(self, text, output=True):
+    def exploit(self, text, output=False):
         rewards = {}
         for action in self.action_vocab:
             encoding = self.dqn.encode(text, action.split(' '))
@@ -107,10 +106,8 @@ class PA_DQAgent(DQAgent):
 
     def callModel(self, text):
         action = self.explore() if random() < self.epsilon else self.exploit(text)
-        print((self.init_epsilon - self.end_epsilon) /
-              self.max_moves)
         self.epsilon -= (self.init_epsilon - self.end_epsilon) / \
-            self.max_moves
+            self.transitions
         return action
 
     def loss_args(self, r, t: ReplayMemory):
