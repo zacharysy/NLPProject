@@ -1,42 +1,12 @@
 import textworld
 import sys
 import torch
-import re
+import tqdm
+import matplotlib.pyplot as plt
 
-from BaseAgent import DQAgent
-from random import randint, random
-from dqn import DQN
-from util import Vocab
+from util import CLS, ReplayMemory, ReplayMemoryStore,  get_device, preprocess_line, read_data
 from argparse import ArgumentParser
-
-
-def contains_digit(in_str: str) -> bool:
-    """
-    This function checks if a string contains any numbers.
-    """
-
-    return sum([i.isdigit() for i in in_str]) > 0
-
-
-def preprocess_line(in_str: str, start_symbol: str = None) -> [str]:
-    """
-    This function is used to preprocess a single line of the input.
-    """
-
-    # Add space to punctuation, quotes, and parentheses
-    in_str = re.sub('([".,!?()])', r' \1 ', in_str)
-
-    # Strip and split
-    line = in_str.lower().split()
-
-    # Filter out any numbers
-    line = ['<num>' if contains_digit(i) else i for i in line]
-
-    # Add a start symbol
-    if start_symbol is not None:
-        line = [start_symbol] + line
-
-    return line
+from DQAgent import MA_DQAgent, PA_DQAgent, bad_feedback
 
 
 sys.path.append("./")
@@ -44,43 +14,142 @@ zorkPath = "../benchmark/zork1.z5"
 maxMoves = 1000
 
 
-def read_data():
-    words = Vocab()
-    actions = Vocab()
-    for line in open('./zork_transcript.txt', 'r'):
-        if line.startswith('>'):
-            actions |= line[1:].strip().split(' ')
-        words |= line.strip().split(' ')
-    words |= (['<UNK>', '<CLS>'])
-    return words, actions
-
-
 def main(args):
     word_vocab, action_vocab = read_data()
-    dims = 200
-    epsilon = 0.1
-    dqn = DQN(word_vocab, action_vocab, dims)
-    agent = DQAgent()
+    dims = 50
+    batch_size = 64
+    rho = 0.25
+    max_size = 50000
+    if args.model == 'max':
+        agent = MA_DQAgent(word_vocab=word_vocab,
+                           action_vocab=action_vocab, dims=dims)
+    else:
+        agent = PA_DQAgent(
+            dims=dims, action_vocab=action_vocab, embedding_path=args.embpath,
+            transitions=maxMoves*args.episodes, gamma=0.25)
 
-    for _ in range(args.episodes):
+    optim = torch.optim.Adam(agent.dqn.parameters(), lr=0.01)
+    loss_fn = torch.nn.MSELoss()
+    replay_store = ReplayMemoryStore(
+        batch_size=batch_size, rho=rho, max_size=max_size)
+
+    reward_history = []
+    synthetic_reward_history = []
+
+    for episode in range(args.episodes):
+        ep_reward = 0
+        total_loss = 0
         env = textworld.start(zorkPath)
         game_state = env.reset()
+        prev_reward = 0
         reward, done, moves = 0, False, 0
-        desc = ['<CLS>', *preprocess_line(game_state['raw'])]
-        for t in range(maxMoves):
-            encoding = dqn.encode(desc)
-            if random() < epsilon:
-                action_num = randint(0, len(action_vocab))
-            else:
-                dist = dqn(encoding)
-                action_num = torch.argmax(dist)
-            command = agent.callModel(action_num)
-            game_state, reward, done = env.step(command)
-            # if reward > 0:
+        desc = preprocess_line(game_state['raw'], start_symbol=CLS)
+        unique_states = {' '.join(desc)}
+
+        for t in tqdm.tqdm(range(maxMoves)):
+            action = agent.act(desc)
+
+            # print('command: ', action)
+            game_state, reward, done = env.step(' '.join(action))
+
+            r = reward - prev_reward
+            priority = 1 if r > 0 else 0
+
+            feedback = preprocess_line(
+                game_state['feedback'], start_symbol=CLS)
+            feedback_str = ' '.join(feedback)
+
+            if done:
+                s = ['done']
+                unique_states.add(feedback_str)
+                print(feedback_str)
+                print(r)
+
+            is_bad_feedback = bad_feedback(feedback_str)
+            # if feedback_str == prev_feedback or is_bad_feedback:
+            if is_bad_feedback:
+                r -= 0.1
+                s = desc
+
+            if feedback_str in unique_states:
+                r -= 0.1
+
+            if not done and not is_bad_feedback or feedback_str not in unique_states:
+                r += 0.01 if reward < 1 else 10
+                desc = feedback
+                s = feedback
+                unique_states.add(feedback_str)
+
+            # elif not bad_feedback(feedback):
+            #     r += 0.1 if reward < 1 else 1
+            #     desc = feedback
+            #     s = feedback
+            #     unique_states.add(' '.join(feedback))
+            # elif ' '.join(feedback) == prev_feedback:
+            #     r -= 0.2
+            #     s = desc
+            # else:
+            #     # print('bad...')
+            #     r = -0.2
+            #     s = desc
+
+            ep_reward += r
+
+            # print(feedback, r)
+            replay_store.add(ReplayMemory(
+                desc, action, r, s, priority))
+
+            prev_reward = reward
+
+            if t % 10 == 0 and len(replay_store.store) >= batch_size:
+                train_mems = replay_store.mini_sample()
+                for t in train_mems:
+                    r = torch.tensor(t.r_t, device=get_device())
+                    if t.s_next[0] == 'done':
+                        y = r
+                    y, prediction = agent.loss_args(r, t)
+                    loss = loss_fn(y, prediction)
+                    optim.zero_grad()
+                    loss.backward()
+                    optim.step()
+
+                    total_loss += loss.detach().item()
+
+        # with open('./log.txt', 'a+') as f:
+        #     f.write(f"EPISODE: {episode}\n")
+        #     states = set()
+        #     for mem in replay_store.store:
+        #         states.add(' '.join(mem.s_t))
+
+        #     for state in states:
+        #         for action in agent.action_vocab:
+        #             enc = agent.dqn.encode(state.split(' '), action.split(' '))
+        #             f.write(
+        #                 f"{state[:30]}\t{action}\t{agent.dqn(enc)}\n")
+            if done:
+                break
+
+        reward_history.append(reward)
+        synthetic_reward_history.append(ep_reward)
+        print(
+            f"EPISODE: {episode}\nDONE: {done}\nREWARD: {reward}\nN UNIQUE STATES: {len(unique_states)}\nEPSILON: {agent.epsilon}\nSYNTHETIC REWARD: {ep_reward}")
+
+        if episode % 5 == 0:
+            agent.update_target_network()
+
+    fig, axs = plt.subplots(2)
+    fig.suptitle('Real (top) vs synthetic (bottom) reward over episodes')
+    axs[0].plot(list(range(args.episodes)), reward_history)
+    axs[1].plot(list(range(args.episodes)), synthetic_reward_history)
+    plt.show()
+
+    agent.dqn.save('./pa_dqn.pt')
 
 
 if __name__ == "__main__":
     p = ArgumentParser()
     p.add_argument("--episodes", type=int,
                    help="number of episodes to train for")
+    p.add_argument("--model", type=str, help="type of dqn to use (max or per)")
+    p.add_argument("--embpath", type=str, help="embedding path")
     main(p.parse_args())

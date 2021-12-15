@@ -1,13 +1,11 @@
+from typing import List
 import torch
 from layers import Embedding, LinearLayer, SelfAttention
-from util import get_device, Vocab
-
-CLS = "<CLS>"
-UNK = "<UNK>"
+from util import get_device, Vocab, UNK
 
 
 class Encoder(torch.nn.Module):
-    def __init__(self, word_vocab: Vocab, action_vocab: Vocab, dims):
+    def __init__(self, word_vocab: Vocab, dims: int):
         super().__init__()
         self.emb = Embedding(vocab_size=len(word_vocab), output_dims=dims)
         self.fpos = torch.nn.Parameter(
@@ -22,11 +20,10 @@ class Encoder(torch.nn.Module):
         self.ll3 = LinearLayer(input_dims=dims, output_dims=dims)
 
         self.word_vocab = word_vocab
-        self.command_vocab = action_vocab
 
         torch.nn.init.normal_(self.fpos, std=.01, mean=0.0)
 
-    def encode(self, words):
+    def encode(self, words: List[str]):
         word_nums = torch.tensor([self.word_vocab.numberize(
             w if w in self.word_vocab else UNK) for w in words], device=get_device())
         v = self.emb(word_nums) + self.fpos[:len(word_nums)]
@@ -43,31 +40,31 @@ class Encoder(torch.nn.Module):
 
 
 class FF(torch.nn.Module):
-    def __init__(self, action_vocab: Vocab, dims):
+    def __init__(self, num_actions: int, dims: int):
         super().__init__()
-        self.command_vocab = action_vocab
         self.ll1 = LinearLayer(input_dims=dims, output_dims=dims)
         self.ll2 = LinearLayer(input_dims=dims, output_dims=dims)
-        self.ll3 = LinearLayer(input_dims=dims, output_dims=dims)
+        self.ll3 = LinearLayer(input_dims=dims, output_dims=num_actions)
+        self.relu = torch.nn.ReLU()
 
     def forward(self, encoding):
         ll1 = self.ll1(encoding)
-        relu1 = torch.nn.ReLU(ll1)
+        relu1 = self.relu(ll1)
         ll2 = self.ll2(relu1)
-        relu2 = torch.nn.ReLU(ll2)
+        relu2 = self.relu(ll2)
         ll3 = self.ll3(relu2)
         return ll3
 
 
-class DQN(torch.nn.Module):
-    def __init__(self, word_vocab: Vocab, action_vocab: Vocab, dims):
+class MA_DQN(torch.nn.Module):
+    def __init__(self, word_vocab: Vocab, action_vocab: Vocab, dims: int):
         super().__init__()
         self.word_vocab = word_vocab
-        self.command_vocab = action_vocab
+        self.action_vocab = action_vocab
         self.dims = dims
 
-        self.encoder = Encoder(word_vocab, action_vocab, dims)
-        self.FF = FF(action_vocab, dims)
+        self.encoder = Encoder(word_vocab,  dims)
+        self.FF = FF(len(action_vocab), dims)
 
     def encode(self, words):
         return self.encoder.encode(words)
