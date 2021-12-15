@@ -9,7 +9,7 @@ def generate_actions(text: str, kg: KnowledgeGraph, slot_filler):
     kg.construct_state(text)
 
     # Parse kg for candidate nouns
-    candidate_nouns = [(['sword'], )]
+    candidate_nouns = kg.create_nouns()
 
     # Turn candidate nouns into candidate phrases
     candidate_phrases = ["take all", "n", "s", "w", "e", "ne", "nw", "se", "sw", "u", "d", "inventory", "look"]
@@ -22,10 +22,10 @@ def generate_actions(text: str, kg: KnowledgeGraph, slot_filler):
         # Learned slot filler
 		else:
         	if len(noun_set) == 1:
-            	slot_filler_out = slot_filler.get_full_sentence(noun_set)
+            	slot_filler_out = slot_filler.get_full_sentence(noun_set, 5, mode='top5')
 
         	else:
-            	slot_filler_out = slot_filler.get_full_sentence(noun_set[0] + ['<SEP>'] + noun_set[1])
+            	slot_filler_out = slot_filler.get_full_sentence(noun_set[0] + ['<SEP>'] + noun_set[1], 5, mode='top5')
 
 			candidate_phrases.append(slot_filler_out)
 
