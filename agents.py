@@ -1,3 +1,12 @@
+from __future__ import annotations
+import sys
+sys.path.append("./")
+
+from baseline.nounverb import NounVerb
+import random
+import re
+import spacy
+from pprint import pprint
 import translation.rnn as rnn
 from translation.transformer import TranslationVocab, Encoder, Decoder, TranslationModel
 import torch
@@ -88,11 +97,12 @@ class RNNAgent(textworld.Agent):
 
 
 class DQAgent(textworld.Agent):
-    def __init__(self, word_vocab, action_vocab, dims, dqn_weights=None, *args, **kwargs):
-        self.dqn = MA_DQN(word_vocab, action_vocab,
-                          dims) if not dqn_weights else torch.load(dqn_weights)
+    def __init__(self, encoder_weights=None, ff_weights=None):
+        self.encoder = torch.load(
+            encoder_weights) if encoder_weights else encoder_weights
+        self.ff = torch.load(
+            ff_weights) if ff_weights else ff_weights
         self.state = []
-        super().__init__(*args, **kwargs)
 
     def act(self, game_state, reward, done):
         while len(self.state) > 1 and self.state[-1].feedback == game_state.feedback:
@@ -104,7 +114,7 @@ class DQAgent(textworld.Agent):
         # text = rnn.preprocess_line(text)
         # prediction = rnn.predict(self.model, text)
         # return ''.join(prediction)
-        return self.dqn.action_vocab.denumberize(action_num)
+        return self.ff.action_vocab.denumberize(action_num)
 
 
 if __name__ == "__main__":
