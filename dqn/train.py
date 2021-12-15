@@ -44,7 +44,6 @@ def main(args):
         prev_reward = 0
         reward, done, moves = 0, False, 0
         desc = preprocess_line(game_state['raw'], start_symbol=CLS)
-        prev_feedback = ' '.join(desc)
         unique_states = {' '.join(desc)}
 
         for t in tqdm.tqdm(range(maxMoves)):
@@ -58,25 +57,24 @@ def main(args):
 
             feedback = preprocess_line(
                 game_state['feedback'], start_symbol=CLS)
+            feedback_str = ' '.join(feedback)
 
             if done:
                 s = ['done']
-                unique_states.add(' '.join(feedback))
-                r += 100
-
-            feedback_str = ' '.join(feedback)
+                unique_states.add(feedback_str)
+                print(feedback_str)
+                print(r)
 
             is_bad_feedback = bad_feedback(feedback_str)
-            if feedback_str == prev_feedback or is_bad_feedback:
-                r -= 0.2
-                # r -= 10
+            # if feedback_str == prev_feedback or is_bad_feedback:
+            if is_bad_feedback:
+                r -= 0.1
                 s = desc
 
             if feedback_str in unique_states:
                 r -= 0.1
-                # r -= 10
 
-            if not is_bad_feedback or feedback_str not in unique_states:
+            if not done and not is_bad_feedback or feedback_str not in unique_states:
                 r += 0.01 if reward < 1 else 10
                 desc = feedback
                 s = feedback
@@ -96,7 +94,6 @@ def main(args):
             #     s = desc
 
             ep_reward += r
-            prev_feedback = ' '.join(feedback)
 
             # print(feedback, r)
             replay_store.add(ReplayMemory(
@@ -129,6 +126,9 @@ def main(args):
         #             enc = agent.dqn.encode(state.split(' '), action.split(' '))
         #             f.write(
         #                 f"{state[:30]}\t{action}\t{agent.dqn(enc)}\n")
+            if done:
+                break
+
         reward_history.append(reward)
         synthetic_reward_history.append(ep_reward)
         print(

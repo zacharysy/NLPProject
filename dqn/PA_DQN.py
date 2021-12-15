@@ -44,18 +44,18 @@ class FF(torch.nn.Module):
     def __init__(self, dims: int):
         super().__init__()
         self.ll1 = LinearLayer(input_dims=dims, output_dims=1)
-        # self.ll2 = LinearLayer(input_dims=dims, output_dims=1)
+        self.ll2 = LinearLayer(input_dims=dims, output_dims=1)
         # self.ll3 = LinearLayer(input_dims=dims, output_dims=1)
         # self.relu = torch.nn.ReLU()
 
     def forward(self, encoding):
         ll1 = self.ll1(encoding)
         # relu1 = self.relu(ll1)
-        # ll2 = self.ll2(relu1)
+        ll2 = self.ll2(ll1)
         # relu2 = self.relu(ll2)
         # ll3 = self.ll3(relu2)
         # return ll3
-        return ll1
+        return ll2
 
 
 class PA_DQN(torch.nn.Module):

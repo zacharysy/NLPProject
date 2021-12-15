@@ -11,7 +11,7 @@ from pprint import pprint
 def bad_feedback(feedback):
     # f = ' '.join(feedback)
     return "you don't" in feedback or "you can't" in feedback or "i don't" in feedback or \
-        "i can't" in feedback or "?" in feedback or len(
+        "i can't" in feedback or len(
             feedback.split(' ')) < 10
 
 
@@ -23,10 +23,12 @@ class DQAgent(textworld.Agent, abc.ABC):
     def exploit(self): pass
 
     def act(self, game_state):
-        while len(self.state) > 1 and self.state[-1] == ' '.join(game_state):
+        game_state_str = ' '.join(game_state)
+        while len(self.state) > 1 and self.state[-1] == game_state_str:
             self.state.pop()
-        if len(self.state) <= 1 or not bad_feedback(' '.join(game_state)):
-            self.state.append(' '.join(game_state))
+        # if len(self.state) <= 1 and not bad_feedback(' '.join(game_state)):
+        if not bad_feedback(game_state_str):
+            self.state.append(game_state_str)
         return self.callModel(self.state[-1].split(' '))
 
     @ abc.abstractmethod
