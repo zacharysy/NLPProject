@@ -18,6 +18,7 @@ import pymagnitude
 import collections
 import numpy as np
 from sklearn.cluster import KMeans
+from nltk.stem.wordnet import WordNetLemmatizer
 
 import layers
 
@@ -33,7 +34,7 @@ RANDOM_SEED = 0
 NUM_VERB_CLUSTERS = 20
 NUM_PREP_CLUSTERS = 20
 LEARNING_RATE = 0.0001
-EPOCHS = 1
+EPOCHS = 10
 
 
 # Helper functions
@@ -97,6 +98,25 @@ def valid_sentence(tup: [str]) -> bool:
 
     return not multi_word_verb and not multi_word_preposition
 
+def create_sentence_standardizer():
+    lemmatizer = WordNetLemmatizer()
+
+    def standardize_sentence(tup: [str]) -> str:
+        # Lemmatize verb
+        tup[0] = lemmatizer.lemmatize(tup[0], 'v')
+
+        # Split the others
+        tup[1] = tup[1].split()
+
+        if len(tup) > 2:
+            tup[3] = tup[3].split()
+
+        return tup
+
+    return standardize_sentence
+
+standardize_sentence = create_sentence_standardizer()
+
 
 def create_clusterings(data: [[str]], embeddings, num_verb_clusters: int, num_prep_clusters: int, random_seed: int):
     """
@@ -118,8 +138,10 @@ def create_clusterings(data: [[str]], embeddings, num_verb_clusters: int, num_pr
 
     # Create vocab
     vocab = Vocab()
-    vocab |= nouns1
-    vocab |= nouns2
+    for item in nouns1:
+        vocab |= item
+    for item in nouns2:
+        vocab |= item
 
     return verb_clustering, prep_clustering, vocab
 
@@ -133,11 +155,27 @@ def handle_uncommon(data: [[str]]) -> [[str]]:
     """
 
     # Get uncommon words
-    counts = collections.Counter([j for i in data for j in i])
+    counts = collections.Counter()
+    for line in data:
+        if len(line) == 2:
+            counts.update([line[0], *line[1]])
+
+        else:
+            counts.update([line[0], *line[1], line[2], *line[3]])
     uncommon = set([key for key, val in counts.items() if val == 1])
 
     # Replace uncommon words
-    out = [[j if j not in uncommon else '<UNK>' for j in i] for i in data]
+    out = []
+    for row in data:
+        row_out = []
+        for item in row:
+            if type(item) is str:
+                row_out.append(item if item not in uncommon else '<UNK>')
+
+            else:
+                row_out.append([i if i not in uncommon else '<UNK>' for i in item])
+
+        out.append(row_out)
 
     return out
 
@@ -146,7 +184,7 @@ def handle_uncommon(data: [[str]]) -> [[str]]:
 class Vocab(collections.abc.MutableSet):
     """Set-like data structure that can change words into numbers and back."""
     def __init__(self):
-        words = {'<EOS>', '<UNK>', '<NIL>'}
+        words = {'<EOS>', '<UNK>', '<NIL>', '<SEP>'}
         self.num_to_word = list(words)
         self.word_to_num = {word:num for num, word in enumerate(self.num_to_word)}
     def add(self, word):
@@ -349,12 +387,12 @@ class AssignmentClassifier(nn.Module):
         # Parse out
         if len(in_words) == 2:
             verb, noun = in_words
-            prediction = self.forward([noun])
+            prediction = self.forward(noun)
             ground_truth = self.get_class_name(verb)
 
         else:
             verb, noun1, prep, noun2 = in_words
-            prediction = self.forward([noun1, noun2])
+            prediction = self.forward(noun1 + ['<SEP>'] + noun2)
             ground_truth = self.get_class_name(verb, prep)
 
         return prediction, ground_truth
@@ -401,21 +439,27 @@ def load_model(csv_path: pathlib.Path,
                weight_path: pathlib.Path = None):
 
     # Load the data
+    print('Loading data from CSV/TSV')
     data = load_csv(csv_path) + load_tsv(tsv_path)
 
     # Preprocess the data
-    data = list(filter(valid_sentence, data))
+    print('Ensuring we have valid sentences')
+    data = list(map(standardize_sentence, filter(valid_sentence, data)))
     data = handle_uncommon(data)
 
     # Load embeddings
     embeddings = pymagnitude.Magnitude(embedding_path)
 
     # Perform k-means clustering
-    verb_clusters, prep_clusters, vocab = create_clusterings(data, embeddings, num_verb_clusters, num_prep_clusters, random_seed)
+    verb_clusters, prep_clusters, vocab = create_clusterings(data,
+                                                             embeddings,
+                                                             num_verb_clusters,
+                                                             num_prep_clusters,
+                                                             random_seed)
 
     # Create the model
     model = AssignmentClassifier(vocab,
-                                 200, 1, 200, 1,
+                                 200, 1, 200, 0,
                                  verb_clusters,
                                  prep_clusters)
 
@@ -434,9 +478,7 @@ if __name__ == '__main__':
                              NUM_VERB_CLUSTERS,
                              NUM_PREP_CLUSTERS,
                              RANDOM_SEED,
-                             MODEL_SAVE_PATH)
-
-    data = data[:10]
+                             None)
 
     # Initialize optimizer and loss function
     optim = torch.optim.Adam(model.parameters(), lr=LEARNING_RATE)

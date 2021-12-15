@@ -11,3 +11,5 @@ depTuples.csv
 *.ckpt
 csv_data.csv
 tsv_data.csv
+*.props
+graph.png
