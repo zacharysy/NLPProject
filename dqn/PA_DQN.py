@@ -1,7 +1,7 @@
 import torch
 import pymagnitude
 from layers import LinearLayer, SelfAttention
-from util import get_device
+from .util import get_device
 
 
 class Encoder(torch.nn.Module):

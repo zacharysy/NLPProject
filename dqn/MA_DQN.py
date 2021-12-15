@@ -1,7 +1,7 @@
 from typing import List
 import torch
 from layers import Embedding, LinearLayer, SelfAttention
-from util import get_device, Vocab, UNK
+from .util import get_device, Vocab, UNK
 
 
 class Encoder(torch.nn.Module):

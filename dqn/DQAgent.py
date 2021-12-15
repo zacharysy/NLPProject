@@ -2,9 +2,9 @@ import abc
 from random import choice, randint, random
 import textworld
 import torch
-from MA_DQN import MA_DQN
-from PA_DQN import PA_DQN
-from util import ReplayMemory, Vocab
+from .MA_DQN import MA_DQN
+from .PA_DQN import PA_DQN
+from .util import ReplayMemory, Vocab
 from pprint import pprint
 
 
@@ -85,7 +85,7 @@ class MA_DQAgent(DQAgent):
 
 
 class PA_DQAgent(DQAgent):
-    def __init__(self, dims, embedding_path, action_vocab: Vocab, dqn_weights=None,
+    def __init__(self, dims=50, embedding_path=None, dqn_weights=None,
                  init_epsilon=1, end_epsilon=0.2, rho=0.25, gamma=0.5, transitions=1000):
         self.dqn = PA_DQN(
             dims, embedding_path) if not dqn_weights else torch.load(dqn_weights)
@@ -100,7 +100,7 @@ class PA_DQAgent(DQAgent):
         self.gamma = gamma
         self.transitions = transitions
         # remove when slot filler done
-        self.action_vocab = action_vocab
+        # self.action_vocab = action_vocab
 
         self.update_target_network()
 
