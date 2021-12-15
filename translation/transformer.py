@@ -1,33 +1,27 @@
-# Import libraries
 import torch
-import torch.nn as nn
-import torch.optim as optim
+device = 'cpu'
 
-import re
-import math
-import tqdm
-import random
-import collections
-import numpy as np
+import math, collections.abc, random, copy, sys, re
 
-# Behavior modifying constants
-device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-save_path = 'transformer.ckpt'
-train_path = '../training/train.txt'
-load_weights = False
-train_model = True
-separate_vocab = True
+sys.path.append("./")
 
-# Hyperparameters
-lr = 0.0003
-dev_prop = 0.1
-epochs = 1
+from training.layers import *
 
-# Objects
-class Vocab(collections.abc.MutableSet):
+def progress(iterable):
+        import os, sys
+        if os.isatty(sys.stderr.fileno()):
+            try:
+                import tqdm
+                return tqdm.tqdm(iterable)
+            except ImportError:
+                return iterable
+        else:
+            return iterable
+
+class TranslationVocab(collections.abc.MutableSet):
     """Set-like data structure that can change words into numbers and back."""
     def __init__(self):
-        words = {'<SOS>', '<EOS>', '<UNK>'}
+        words = {'<EOS>', '<UNK>'}
         self.num_to_word = list(words)
         self.word_to_num = {word:num for num, word in enumerate(self.num_to_word)}
     def add(self, word):
@@ -55,356 +49,255 @@ class Vocab(collections.abc.MutableSet):
         """Convert a number into a word."""
         return self.num_to_word[num]
 
-
-class PositionalEncoding(nn.Module):
-    def __init__(self, dim_model, dropout_p, max_len):
-        super().__init__()
-        # Modified version from: https://pytorch.org/tutorials/beginner/transformer_tutorial.html
-        # max_len determines how far the position can have an effect on a token (window)
-
-        # Info
-        self.dropout = nn.Dropout(dropout_p)
-
-        # Encoding - From formula
-        pos_encoding = torch.zeros(max_len, dim_model)
-        positions_list = torch.arange(0, max_len, dtype=torch.float).view(-1, 1) # 0, 1, 2, 3, 4, 5
-        division_term = torch.exp(torch.arange(0, dim_model, 2).float() * (-math.log(10000.0)) / dim_model) # 1000^(2i/dim_model)
-
-        # PE(pos, 2i) = sin(pos/1000^(2i/dim_model))
-        pos_encoding[:, 0::2] = torch.sin(positions_list * division_term)
-
-        # PE(pos, 2i + 1) = cos(pos/1000^(2i/dim_model))
-        pos_encoding[:, 1::2] = torch.cos(positions_list * division_term)
-
-        # Saving buffer (same as parameter without gradients needed)
-        pos_encoding = pos_encoding.unsqueeze(0).transpose(0, 1)
-        self.register_buffer("pos_encoding",pos_encoding)
-
-    def forward(self, token_embedding: torch.tensor) -> torch.tensor:
-        # Residual connection + pos encoding
-        return self.dropout(token_embedding + self.pos_encoding[:token_embedding.size(0), :])
-
-
-class Transformer(nn.Module):
-    """
-    This class implements a transformer model for text-to-command
-    generation in a text adventure.
-
-    Inputs: vocab_size - number of words in the vocabulary
-            dim_model - size of embedded vectors
-            num_heads - number of attention heads
-            num_encoder_layers - number of encoder layers
-            num_decoder_layers - number of decoder layers
-
-    Model from "A detailed guide to Pytorch's nn.Transformer() module.", by
-    Daniel Melchor: https://medium.com/@danielmelchor/a-detailed-guide-to-pytorchs-nn-transformer-module-c80afbc9ffb1
-    """
-    def __init__(self,
-                 scene_vocab: Vocab,
-                 command_vocab: Vocab,
-                 dim_model: int = 100,
-                 num_heads: int = 5,
-                 num_encoder_layers: int = 2,
-                 num_decoder_layers: int = 2,
-                 dropout_p: float = 0.1
-        ):
-
-        super().__init__()
-
-        # INFO
-        self.model_type = "Transformer"
-        self.scene_vocab = scene_vocab
-        self.command_vocab = command_vocab
-        self.dim_model = dim_model
-
-        # LAYERS
-        self.positional_encoder = PositionalEncoding(
-            dim_model=dim_model, dropout_p=dropout_p, max_len=5000
-        )
-        self.scene_embedding = nn.Embedding(len(self.scene_vocab), dim_model)
-        self.command_embedding = nn.Embedding(len(self.command_vocab), dim_model)
-        self.transformer = nn.Transformer(
-            d_model=dim_model,
-            nhead=num_heads,
-            num_encoder_layers=num_encoder_layers,
-            num_decoder_layers=num_decoder_layers,
-            dropout=dropout_p,
-        )
-        self.out = nn.Linear(dim_model, len(self.command_vocab))
-        self.softmax = nn.Softmax(dim=2)
-
-    def encode_src(self, src: [str]):
-        return torch.tensor([self.scene_vocab.numberize(i) for i in src], dtype=torch.long).unsqueeze(0)
-
-    def encode_tgt(self, tgt: [str]):
-        return torch.tensor([self.command_vocab.numberize(i) for i in tgt], dtype=torch.long).unsqueeze(0)
-
-    def forward(self, src, tgt, tgt_mask=None, src_pad_mask=None, tgt_pad_mask=None):
-        # Src size must be (batch_size, src sequence length)
-        # Tgt size must be (batch_size, tgt sequence length)
-
-        # Embedding + positional encoding - Out size = (batch_size, sequence length, dim_model)
-        src = self.scene_embedding(src) * math.sqrt(self.dim_model)
-        tgt = self.command_embedding(tgt) * math.sqrt(self.dim_model)
-        src = self.positional_encoder(src)
-        tgt = self.positional_encoder(tgt)
-
-        # We could use the parameter batch_first=True, but our KDL version doesn't support it yet, so we permute
-        # to obtain size (sequence length, batch_size, dim_model),
-        src = src.permute(1,0,2)
-        tgt = tgt.permute(1,0,2)
-
-        # Transformer blocks - Out size = (sequence length, batch_size, num_tokens)
-        transformer_out = self.transformer(src, tgt, tgt_mask=tgt_mask, src_key_padding_mask=src_pad_mask, tgt_key_padding_mask=tgt_pad_mask)
-        out = self.out(transformer_out)
-        soft_out = self.softmax(out)
-
-        # Permute the output to size (batch_size, out_vocab_size, sequence_len)
-        soft_out = soft_out.permute(1, 2, 0)
-
-        return soft_out
-
-    def get_tgt_mask(self, size) -> torch.tensor:
-        # Generates a squeare matrix where the each row allows one word more to be seen
-        mask = torch.tril(torch.ones(size, size) == 1) # Lower triangular matrix
-        mask = mask.float()
-        mask = mask.masked_fill(mask == 0, float('-inf')) # Convert zeros to -inf
-        mask = mask.masked_fill(mask == 1, float(0.0)) # Convert ones to 0
-
-        # EX for size=5:
-        # [[0., -inf, -inf, -inf, -inf],
-        #  [0.,   0., -inf, -inf, -inf],
-        #  [0.,   0.,   0.,   0.,   0.]]
-
-        return mask
-
-    def create_pad_mask(self, matrix: torch.tensor, pad_token: int) -> torch.tensor:
-        # If matrix = [1,2,3,0,0,0] where pad_token=0, the result mask is
-        # [False, False, False, True, True, True]
-        return (matrix == pad_token)
-
-
-# Helper functions
-def wrap_sentence(in_sentence: [str]) -> [str]:
-    """
-    This function pads a sentence with <SOS> and <EOS>
-    """
-    return ['<SOS>'] + in_sentence + ['<EOS>']
-
-
-def contains_digit(in_str: str) -> bool:
-    """
-    This function checks if a string contains any numbers.
+def read_parallel(filename):
+    """Read data from the file named by 'filename.'
+    Argument: filename
+    Returns: list of pairs of lists of strings. <EOS> is appended to all sentences.
     """
 
-    return sum([i.isdigit() for i in in_str]) > 0
+    lines = []
+    data = []
+    with open(filename) as file:
+        for line in file:
+            lines.append(line.strip())
 
+    for i in range(0,len(lines)-1,2):
+        fwords = list(map(lambda x: re.sub("\W", "", x).lower(), lines[i].strip().split())) + ["<EOS>"]
+        ewords = lines[i+1].lower().strip().split() + ["<EOS>"]
 
-def preprocess_line(in_str: str, start_symbol: str = None) -> [str]:
-    """
-    This function is used to preprocess a single line of the input.
-    """
-
-    # Add space to punctuation, quotes, and parentheses
-    in_str = re.sub('([".,!?()])', r' \1 ', in_str)
-
-    # Strip and split
-    line = in_str.lower().split()
-
-    # Filter out any numbers
-    line = ['<num>' if contains_digit(i) else i for i in line]
-
-    # Add a start symbol
-    if start_symbol is not None:
-        line = [start_symbol] + line
-
-    return line
-
-
-def load_data(path: str) -> [([str], [str])]:
-    """
-    This function loads in data from the training file. The file
-    alternates between scene descriptions and commands.
-    """
-
-    # Read the text file
-    with open(path, 'r') as f:
-        data = list(f.readlines())
-
-    # Split into input/target
-    inputs = [preprocess_line(line) for i, line in enumerate(data) if i % 2 == 0]
-    targets = [preprocess_line(line) for i, line in enumerate(data) if i % 2 == 1]
-    data = list(zip(inputs, targets))
+        data.append((fwords, ewords))
 
     return data
 
+def read_mono(filename):
+    """Read sentences from the file named by 'filename.'
 
-def train_loop(model, opt, loss_fn, data):
+    Argument: filename
+    Returns: list of lists of strings. <EOS> is appended to each sentence.
     """
-    Adapted from Daniel Melchor: https://medium.com/@danielmelchor/a-detailed-guide-to-pytorchs-nn-transformer-module-c80afbc9ffb1
-    """
+    data = []
+    for line in open(filename):
+        words = line.split() + ['<EOS>']
+        data.append(words)
+    return data
 
-    model.train()
-    total_loss = 0
+class Encoder(torch.nn.Module):
+    """Transformer encoder."""
+    def __init__(self, vocab_size, dims):
+        super().__init__()
+        self.emb = Embedding(vocab_size, dims)
+        self.pos = torch.nn.Parameter(torch.empty(1000, dims))
+        torch.nn.init.normal_(self.pos, std=0.01)
+        self.att1 = SelfAttention(dims)
+        self.ffnn1 = TanhLayer(dims, dims, True)
+        self.att2 = SelfAttention(dims)
+        self.ffnn2 = TanhLayer(dims, dims, True)
 
-    for scene, command in tqdm.tqdm(data):
-        # Wrap command
-        command = wrap_sentence(command)
+    def forward(self, fnums):
+        e = self.emb(fnums) + self.pos[:len(fnums)]
+        h = self.att1(e)
+        h = self.ffnn1(h)
+        h = self.att2(h)
+        h = self.ffnn2(h)
+        return h
 
-        # Encode the vectors
-        scene_nums = model.encode_src(scene).to(device)
-        command_nums = model.encode_tgt(command).to(device)
+class Decoder(torch.nn.Module):
+    """Transformer decoder."""
 
-        # Now we shift the tgt by one so with the <SOS> we predict the token at pos 1
-        y_input = command_nums[:,:-1]
-        y_expected = command_nums[:,1:]
+    def __init__(self, dims, vocab_size):
+        super().__init__()
+        self.emb = Embedding(vocab_size, dims)
+        self.pos = torch.nn.Parameter(torch.empty(900, dims))
+        torch.nn.init.normal_(self.pos, std=0.01)
+        self.att = MaskedSelfAttention(dims)
+        self.ffnn = TanhLayer(dims, dims, True)
+        self.merge = TanhLayer(dims+dims, dims)
+        self.out = SoftmaxLayer(dims, vocab_size)
 
-        # Get mask to mask out the next words
-        sequence_length = y_input.size(1)
-        tgt_mask = model.get_tgt_mask(sequence_length).to(device)
+    def start(self, fencs):
+        """Return the initial state of the decoder.
 
-        # Standard training except we pass in y_input and tgt_mask
-        pred = model(scene_nums, y_input, tgt_mask)
+        Since the only layer that has state is the attention, we just use
+        its state. If there were more than one self-attention
+        layer, this would be more complicated.
+        """
+        return (fencs, self.att.start())
 
-        # Permute pred to have batch size first again
-        loss = loss_fn(pred, y_expected)
+    def input(self, state, enum):
+        """Read in an English word (enum) and compute a new state from the old state (h)."""
+        fencs, h = state
+        flen = len(h)
+        e = self.emb(enum) + self.pos[flen]
+        h = self.att.input(h, e)
+        return (fencs, h)
 
-        opt.zero_grad()
-        loss.backward()
-        opt.step()
+    def output(self, state):
+        """Compute a probability distribution over the next English word."""
+        fencs, h = state
+        a = self.att.output(h)
+        a = self.ffnn(a)
+        c = attention(a, fencs, fencs)
+        m = self.merge(torch.cat([c, a]))
+        o = self.out(m)
+        return o
 
-        total_loss += loss.detach().item()
+class TranslationModel(torch.nn.Module):
+    def __init__(self, fvocab, dims, evocab):
+        super().__init__()
 
-    return total_loss / len(data)
+        # Store the vocabularies inside the Model object
+        # so that they get loaded and saved with it.
+        self.fvocab = fvocab
+        self.evocab = evocab
 
+        self.encoder = Encoder(len(fvocab), dims)
+        self.decoder = Decoder(dims, len(evocab))
 
-def validation_loop(model, loss_fn, data):
-    """
-    Adapted from Daniel Melchor: https://medium.com/@danielmelchor/a-detailed-guide-to-pytorchs-nn-transformer-module-c80afbc9ffb1
-    """
+        # This is just so we know what device to create new tensors on
+        self.dummy = torch.nn.Parameter(torch.empty(0))
 
-    model.eval()
-    total_loss = 0
+    def logprob(self, fwords, ewords):
+        """Return the log-probability of a sentence pair.
 
-    with torch.no_grad():
-        for scene, command in data:
-            # Wrap command
-            command = wrap_sentence(command)
+        Arguments:
+            fwords: source sentence (list of str)
+            ewords: target sentence (list of str)
 
-            # Encode the vectors
-            scene_nums = model.encode_src(scene).to(device)
-            command_nums = model.encode_tgt(command).to(device)
+        Return:
+            log-probability of ewords given fwords (scalar)"""
 
-            # Now we shift the tgt by one so with the <SOS> we predict the token at pos 1
-            y_input = command_nums[:,:-1]
-            y_expected = command_nums[:,1:]
+        fnums = torch.tensor([self.fvocab.numberize(f) for f in fwords], device=self.dummy.device)
+        fencs = self.encoder(fnums)
+        state = self.decoder.start(fencs)
+        logprob = 0.
+        for eword in ewords:
+            o = self.decoder.output(state)
+            enum = self.evocab.numberize(eword)
+            logprob += o[enum]
+            state = self.decoder.input(state, enum)
+        return logprob
 
-            # Get mask to mask out the next words
-            sequence_length = y_input.size(1)
-            tgt_mask = model.get_tgt_mask(sequence_length).to(device)
+    def translate(self, fwords):
+        """Translate a sentence using greedy search.
 
-            # Standard training except we pass in y_input and tgt_mask
-            pred = model(scene_nums, y_input, tgt_mask)
-            loss = loss_fn(pred, y_expected)
-            total_loss += loss.detach().item()
+        Arguments:
+            fwords: source sentence (list of str)
 
-    return total_loss / len(data)
+        Return:
+            ewords: target sentence (list of str)
+        """
+        numChoices = 10
 
+        fnums = torch.tensor([self.fvocab.numberize(f) for f in fwords], device=self.dummy.device)
+        fencs = self.encoder(fnums)
+        state = self.decoder.start(fencs)
+        ewords = []
+        for i in range(100):
+            o = self.decoder.output(state)
 
-def predict(model, scene: [str], max_length=15, SOS_token='<SOS>', EOS_token='<EOS>'):
-    """
-    Adapted from Daniel Melchor: https://medium.com/@danielmelchor/a-detailed-guide-to-pytorchs-nn-transformer-module-c80afbc9ffb1
-    """
-
-    # Set to evaluation mode
-    model.eval()
-
-    # Prepare the inputs
-    scene_nums = model.encode_src(scene).to(device)
-    y_input = model.encode_tgt([SOS_token]).to(device)
-    out_sentence = []
-
-    # Count the input sequence length
-    num_tokens = len(scene)
-
-    with torch.no_grad():
-        for _ in range(max_length):
-            # Get source mask
-            tgt_mask = model.get_tgt_mask(y_input.size(1)).to(device)
-
-            pred = model(scene_nums, y_input, tgt_mask)
-
-            # Get the next item
-            next_item = torch.multinomial(pred[:,:,-1].squeeze(), 1).item() # random number
-            # next_item = pred.topk(1)[1].view(-1)[-1].item() # num with highest probability
-            next_item = torch.tensor([[next_item]], device=device)
-
-            # Concatenate previous input with predicted best word
-            y_input = torch.cat((y_input, next_item), dim=1)
-
-            next_word = model.command_vocab.denumberize(y_input.view(-1).tolist()[-1])
-            out_sentence.append(next_word)
-
-            # Stop if model predicts end of sentence
-            if next_word == EOS_token:
+            topWord = self.evocab.denumberize(torch.argmax(o))
+            if topWord == '<EOS>':
                 break
 
-    return out_sentence
+            topk = torch.topk(o, numChoices)
+            choice = random.randint(0,numChoices-1)
+            enum = topk[1][choice].item()
+            eword = self.evocab.denumberize(enum)
+            if eword == '<EOS>': break
+            ewords.append(eword)
+            state = self.decoder.input(state, enum)
+
+        return ewords
+
+if __name__ == "__main__":
+    import argparse, sys
+
+    parser = argparse.ArgumentParser()
+    parser.add_argument('--train', type=str, help='training data')
+    parser.add_argument('infile', nargs='?', type=str, help='test data to translate')
+    parser.add_argument('-o', '--outfile', type=str, help='write translations to file')
+    parser.add_argument('--load', type=str, help='load model from file')
+    parser.add_argument('--save', type=str, help='save model in file')
+    args = parser.parse_args()
+
+    if args.train:
+        # Read training data and create vocabularies
+        data = read_parallel(args.train)
+        cutoff = int(len(data) * 0.7)
+
+        traindata = data[:cutoff]
+        devdata = data[cutoff:]
 
 
-def load_model(save_path: str):
-    return torch.load(save_path)
+        fvocab = TranslationVocab()
+        evocab = TranslationVocab()
+        for fwords, ewords in traindata:
+            fvocab |= fwords
+            evocab |= ewords
 
+        # Create model
+        m = TranslationModel(fvocab, 64, evocab) # try increasing 64 to 128 or 256
 
-if __name__ == '__main__':
-    # Load the data
-    data = load_data(train_path)
+    elif args.load:
+        if args.save:
+            print('error: --save can only be used with --train', file=sys.stderr)
+            sys.exit()
+        m = torch.load(args.load)
 
-    # Split into trai/dev sets
-    random.shuffle(data)
-    dev_cutoff = int(len(data) * dev_prop)
-    dev_data = data[:dev_cutoff]
-    data = data[dev_cutoff:]
-
-    # Create vocabularies
-    scene_vocab = Vocab()
-    command_vocab = Vocab()
-
-    for scene, command in data:
-        scene_vocab |= scene
-        command_vocab |= command
-
-    if not separate_vocab:
-        scene_vocab |= command_vocab
-        command_vocab |= scene_vocab
-
-    # Load model
-    if load_weights:
-        model = torch.load(save_path)
     else:
-        model = Transformer(scene_vocab=scene_vocab,
-                            command_vocab=command_vocab,
-                            dim_model=128,
-                            num_heads=4,
-                            num_encoder_layers=3,
-                            num_decoder_layers=3,
-                            dropout_p=0.1)
-    model = model.to(device)
+        print('error: either --train or --load is required', file=sys.stderr)
+        sys.exit()
 
-    # Train model
-    if train_model:
-        # Create optimizer and loss function
-        optim = torch.optim.Adam(model.parameters(), lr=lr)
-        loss_fn = nn.CrossEntropyLoss()
+    if args.infile and not args.outfile:
+        print('error: -o is required', file=sys.stderr)
+        sys.exit()
 
-        for epoch in range(epochs):
-            # Perform pre-loop accounting
-            print(f'--- Epoch {epoch+1}/{epochs} ---')
-            random.shuffle(data)
+    if args.train:
+        opt = torch.optim.Adam(m.parameters(), lr=0.0003)
 
-            # Training loop
-            train_loss = train_loop(model, optim, loss_fn, data)
-            dev_loss = validation_loop(model, loss_fn, dev_data)
+        best_dev_loss = None
+        for epoch in range(10):
+            random.shuffle(traindata)
 
-            print(f'Train Loss: {train_loss:3e}, Dev Loss: {dev_loss:3e}')
-            torch.save(model, save_path)
+            ### Update model on train
+
+            train_loss = 0.
+            train_ewords = 0
+            for fwords, ewords in progress(traindata):
+                loss = -m.logprob(fwords, ewords)
+                opt.zero_grad()
+                loss.backward()
+                opt.step()
+                train_loss += loss.item()
+                train_ewords += len(ewords)
+
+            ### Validate on dev set and print out a few translations
+
+            dev_loss = 0.
+            dev_ewords = 0
+            for line_num, (fwords, ewords) in enumerate(devdata):
+                dev_loss -= m.logprob(fwords, ewords).item()
+                dev_ewords += len(ewords)
+                if line_num < 10:
+                    print(f"{' '.join(fwords)}")
+                    translation = m.translate(fwords)
+                    print(' '.join(translation))
+                    print()
+
+            if best_dev_loss is None or dev_loss < best_dev_loss:
+                best_model = copy.deepcopy(m)
+                if args.save:
+                    torch.save(m, args.save)
+                best_dev_loss = dev_loss
+
+            print(f'[{epoch+1}] train_loss={train_loss} train_ppl={math.exp(train_loss/train_ewords)} dev_ppl={math.exp(dev_loss/dev_ewords)}', flush=True)
+
+        m = best_model
+
+    ### Translate test set
+
+    if args.infile:
+        with open(args.outfile, 'w') as outfile:
+            for fwords in read_mono(args.infile):
+                translation = m.translate(fwords)
+                print(' '.join(translation), file=outfile)

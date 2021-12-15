@@ -9,9 +9,9 @@ import sys
 sys.path.append("./")
 
 from diaparser.parsers import Parser
-import re
+from nltk.stem.wordnet import WordNetLemmatizer
 from pprint import pprint
-from baseline.utils import convert_verb
+import re
 
 def get_children(tokens,id):
     children = []
@@ -79,11 +79,14 @@ def complete_obl(tokens, start):
 
 if __name__ == "__main__":
 
-    textPath =  "training/1342-0.txt"
+    textPath =  "training/pg28885.txt"
     saveTo = "training/depTuples.csv"
 
     with open(textPath, "r") as file:
         block = file.read()
+
+    # Initialize lemmatizer
+    lemmatizer = WordNetLemmatizer()
 
     # Split lines by ., ?, !, and any of the previous followed by a quote.
     lines = re.split(r'(?<!\w\.\w.)(?<![A-Z][a-z]\.)(?<=\.|\?)\s', block)
@@ -110,7 +113,7 @@ if __name__ == "__main__":
             n1, verb = complete_obj(tokens, sentence.rels.index("obj") + 1)
 
             data["n1"] = n1
-            data["verb"] = verb
+            data["verb"] = verb.lower()
 
         if "obl" in sentence.rels:
             n2, pp = complete_obl(tokens, sentence.rels.index("obl") + 1)
@@ -118,6 +121,9 @@ if __name__ == "__main__":
             data["prep"] = pp
 
         if data['verb'] is not None:
+            # Change verb tense
+            data['verb'] = lemmatizer.lemmatize(data['verb'], 'v')
+
             with open(saveTo, 'a+') as file:
                 line = None
                 if data['n2'] is not None and data['prep'] is not None:

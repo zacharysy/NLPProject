@@ -115,7 +115,7 @@ class Model(torch.nn.Module):
     def restart(self):
         self.prev_h = self.h_initial.clone()
 
-    def train(self, data=None,  epochs=30, optimizer=None):
+    def train_model(self, data=None,  epochs=30, optimizer=None):
         # from tutorial notebook
         for epoch in range(epochs):
             random.shuffle(data)
@@ -223,7 +223,7 @@ def main(args):
 
     model = Model(vocab, response_vocab, 64, device)
     o = torch.optim.SGD(model.parameters(), lr=0.1)
-    model.train(data=input_train, epochs=10, optimizer=o)
+    model.train_model(data=input_train, epochs=10, optimizer=o)
     model.save(args.save)
 
 
