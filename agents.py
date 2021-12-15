@@ -59,7 +59,8 @@ class TransformerAgent(textworld.Agent):
         while self.state[-1].feedback == game_state.feedback and len(self.state) > 1:
             self.state.pop()
 
-        text = re.sub("(\W|_)+", " ", self.state[-1].feedback).strip().lower().split() + ["<EOS>"]
+        text = re.sub(
+            "(\W|_)+", " ", self.state[-1].feedback).strip().lower().split() + ["<EOS>"]
 
         return self.callModel(text)
 
