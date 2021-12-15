@@ -6,7 +6,7 @@ from knowledgeGraph.graph import KnowledgeGraph
 
 def generate_actions(text: str, kg: KnowledgeGraph, slot_filler):
     # Construct state
-    kg.construct_state(text)
+    kg.construct_state(' '.join(text))
 
     # Parse kg for candidate nouns
     candidate_nouns = kg.create_nouns()
@@ -16,17 +16,17 @@ def generate_actions(text: str, kg: KnowledgeGraph, slot_filler):
 
     for noun_set in candidate_nouns:
         # Heuristic slot filler
-		if slot_filler.slot_fill_type == "heuristic":
-			candidate_phrases += slot_filler.createActionSet(noun_set)
+        if slot_filler.slot_fill_type == "heuristic":
+            candidate_phrases += slot_filler.createActionSet([i.split(' ') for i in noun_set])
 
         # Learned slot filler
-		else:
-        	if len(noun_set) == 1:
-            	slot_filler_out = slot_filler.get_full_sentence(noun_set, 5, mode='top5')
+        else:
+            if len(noun_set) == 1:
+                slot_filler_out = slot_filler.get_full_sentence(noun_set[0].split(' '), 5, mode='top5')
 
-        	else:
-            	slot_filler_out = slot_filler.get_full_sentence(noun_set[0] + ['<SEP>'] + noun_set[1], 5, mode='top5')
+            else:
+                slot_filler_out = slot_filler.get_full_sentence(noun_set[0].split(' ') + ['<SEP>'] + noun_set[1].split(' '), 5, mode='top5')
 
-			candidate_phrases.append(slot_filler_out)
+            candidate_phrases.append(slot_filler_out)
 
     return candidate_phrases

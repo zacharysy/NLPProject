@@ -43,7 +43,7 @@ class Encoder(torch.nn.Module):
 class FF(torch.nn.Module):
     def __init__(self, dims: int):
         super().__init__()
-        self.ll1 = LinearLayer(input_dims=dims, output_dims=1)
+        self.ll1 = LinearLayer(input_dims=dims, output_dims=dims)
         self.ll2 = LinearLayer(input_dims=dims, output_dims=1)
         # self.ll3 = LinearLayer(input_dims=dims, output_dims=1)
         # self.relu = torch.nn.ReLU()

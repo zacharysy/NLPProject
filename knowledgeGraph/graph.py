@@ -62,6 +62,9 @@ class KnowledgeGraph:
         """
 
         # Handle simple state
+        if self.prev_scene is None:
+            self.prev_scene = scene
+
         if self.update_inventory(scene):
             scene = self.prev_scene
 
@@ -109,11 +112,11 @@ class KnowledgeGraph:
         """
         Get all nouns or noun pairs from the graph/inventory
         """
-
         noun_pairs = []
 
         # Handle inventory first
-        noun_pairs += [(i, ) for i in self.inventory]
+        for item in self.inventory:
+            noun_pairs.append((item,))
 
         # Handle the graph
         root_nodes = [self.location, 'you'] if self.location is not None else ['you']
@@ -122,10 +125,10 @@ class KnowledgeGraph:
 
         for root_node in root_nodes:
             if root_node in entity_to_idx:
-                mat_row = adj_mat[entity_to_int[root_node]]
+                mat_row = adj_mat[entity_to_idx[root_node]]
                 child_idxs = [i for i, item in enumerate(mat_row) if item is not None]
                 children = [idx_to_entity[i] for i in child_idxs]
-                noun_pairs += [(i, _) for i in children]
+                noun_pairs += [(i, ) for i in children]
 
         return noun_pairs
 

@@ -53,10 +53,10 @@ def read_data():
     for i, line in enumerate(open('./zork_transcript.txt', 'r')):
         if line.startswith('>'):
             actions.add(line[1:].strip())
-            v = ' '.join(preprocess_line(v.strip(), start_symbol=CLS))
+            v = ' '.join(preprocess_line(v.strip()))
             v = ""
         else:
-            words |= preprocess_line(line, start_symbol=CLS)
+            words |= preprocess_line(line)
             if i != 0:
                 v += line
 
@@ -157,13 +157,6 @@ class Vocab(collections.abc.MutableSet):
     def denumberize(self, num):
         """Convert a number into a word."""
         return self.num_to_word[num]
-
-
-def generate_actions(correct_action, action_vocab: Vocab):
-    options = [
-        correct_action, *[choice(action_vocab.num_to_word) for _ in range(3)]
-    ]
-    return options
 
 
 def get_device():

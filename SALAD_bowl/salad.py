@@ -13,11 +13,10 @@ import training.templating as templating
 from heuristicSlotFilling.classifier import ActionGenerator
 import knowledgeGraph.graph as graph
 from dqn.DQAgent import PA_DQAgent, bad_feedback
-from dqn.util import ReplayMemory, ReplayMemoryStore, get_device, preprocess_line
+from dqn.util import CLS, ReplayMemory, ReplayMemoryStore, get_device, preprocess_line
 
 
-def train(agent, slot_filler, kg, episodes, max_moves, game_path, output_weight_path):
-    dims = 50
+def train(agent, episodes, max_moves, game_path, output_weight_path):
     batch_size = 64
     rho = 0.25
     max_size = 50000
@@ -33,26 +32,24 @@ def train(agent, slot_filler, kg, episodes, max_moves, game_path, output_weight_
         game_state = env.reset()
         prev_reward = 0
         reward, done, moves = 0, False, 0
-        desc = preprocess_line(game_state['raw'], start_symbol=CLS)
+        desc = preprocess_line(game_state['raw'])
         unique_states = {' '.join(desc)}
 
         for t in tqdm.tqdm(range(max_moves)):
             action = agent.act(desc)
-
-            # print('command: ', action)
             game_state, reward, done = env.step(' '.join(action))
 
             r = reward - prev_reward
             priority = 1 if r > 0 else 0
 
             feedback = preprocess_line(
-                game_state['feedback'], start_symbol=CLS)
+                game_state['feedback'])
             feedback_str = ' '.join(feedback)
 
             if done:
                 s = ['done']
                 unique_states.add(feedback_str)
-                print(feedback_str)
+                print('FINISHED: ', feedback_str)
                 print(r)
 
             is_bad_feedback = bad_feedback(feedback_str)
@@ -121,12 +118,14 @@ def main(args):
 
     if args.agent_weight_path:
         salad_agent = PA_DQAgent(dqn_weights=args.agent_weight_path,
-            embedding_path=args.embedding_path, transitions=args.max_moves*args.episodes)
+            embedding_path=args.embedding_path, transitions=args.max_moves*args.episodes,
+            slot_filler=slot_filler, knowledge_graph=kg)
     else:
-        PA_DQAgent(embedding_path=args.embedding_path, transitions=args.max_moves*args.episodes)
+        salad_agent = PA_DQAgent(embedding_path=args.embedding_path, transitions=args.max_moves*args.episodes,
+                    slot_filler=slot_filler, knowledge_graph=kg)
 
     if args.train:
-        train(salad_agent, slot_filler, kg, args.episodes, args.max_moves, args.game_path, args.output_weight_path)
+        train(salad_agent, args.episodes, args.max_moves, args.game_path, args.output_weight_path)
 
 if __name__ == "__main__":
     p = ArgumentParser()

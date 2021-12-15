@@ -2,18 +2,19 @@ import abc
 from random import choice, randint, random
 import textworld
 import torch
+
+from knowledgeGraph.graph import KnowledgeGraph
+from SALAD_bowl.integration import generate_actions
 from .MA_DQN import MA_DQN
 from .PA_DQN import PA_DQN
-from .util import ReplayMemory, Vocab
+from .util import ReplayMemory
 from pprint import pprint
 
 
 def bad_feedback(feedback):
     # f = ' '.join(feedback)
     return "you don't" in feedback or "you can't" in feedback or "i don't" in feedback or \
-        "i can't" in feedback or len(
-            feedback.split(' ')) < 10
-
+        "i can't" in feedback  or "there is no" in feedback
 
 class DQAgent(textworld.Agent, abc.ABC):
     @abc.abstractmethod
@@ -86,7 +87,8 @@ class MA_DQAgent(DQAgent):
 
 class PA_DQAgent(DQAgent):
     def __init__(self, dims=50, embedding_path=None, dqn_weights=None,
-                 init_epsilon=1, end_epsilon=0.2, rho=0.25, gamma=0.5, transitions=1000):
+                 init_epsilon=1, end_epsilon=0.2, rho=0.25, gamma=0.5, transitions=1000,
+                 slot_filler=None, knowledge_graph: KnowledgeGraph=None):
         self.dqn = PA_DQN(
             dims, embedding_path) if not dqn_weights else torch.load(dqn_weights)
         self.target_network = PA_DQN(dims, embedding_path)
@@ -99,23 +101,25 @@ class PA_DQAgent(DQAgent):
         self.rho = rho
         self.gamma = gamma
         self.transitions = transitions
-        # remove when slot filler done
-        # self.action_vocab = action_vocab
+        self.slot_filler = slot_filler
+        self.knowledge_graph = knowledge_graph
 
         self.update_target_network()
 
     def update_target_network(self):
         self.target_network.load_state_dict(self.dqn.state_dict())
 
-    def explore(self):
-        action = choice(self.action_vocab.num_to_word)
+
+    def explore(self, text):
+        actions = generate_actions(text, self.knowledge_graph, self.slot_filler)
+        action = choice(actions)
         return action.split(' ')
 
     def exploit(self, text, output=False, use_target_network=False):
         rewards = {}
-        for action in self.action_vocab:
-            # encoding = self.dqn.encode(text, action.split(' '))
-            # network = self.dqn if not use_target_network else self.target_network
+        actions = generate_actions(text, self.knowledge_graph, self.slot_filler)
+
+        for action in actions:
             if use_target_network:
                 with torch.no_grad():
                     encoding = self.target_network.encode(
@@ -131,7 +135,7 @@ class PA_DQAgent(DQAgent):
         return max_action.split(' ')
 
     def callModel(self, text):
-        action = self.explore() if random() < self.epsilon else self.exploit(text)
+        action = self.explore(text) if random() < self.epsilon else self.exploit(text, output=False)
         self.epsilon -= (self.init_epsilon - self.end_epsilon) / \
             self.transitions
         return action

@@ -4,7 +4,7 @@ import torch
 import tqdm
 import matplotlib.pyplot as plt
 
-from util import CLS, ReplayMemory, ReplayMemoryStore,  get_device, preprocess_line, read_data
+from util import  ReplayMemory, ReplayMemoryStore,  get_device, preprocess_line, read_data
 from argparse import ArgumentParser
 from DQAgent import MA_DQAgent, PA_DQAgent, bad_feedback
 
@@ -43,7 +43,7 @@ def main(args):
         game_state = env.reset()
         prev_reward = 0
         reward, done, moves = 0, False, 0
-        desc = preprocess_line(game_state['raw'], start_symbol=CLS)
+        desc = preprocess_line(game_state['raw'])
         unique_states = {' '.join(desc)}
 
         for t in tqdm.tqdm(range(maxMoves)):
@@ -56,7 +56,7 @@ def main(args):
             priority = 1 if r > 0 else 0
 
             feedback = preprocess_line(
-                game_state['feedback'], start_symbol=CLS)
+                game_state['feedback'])
             feedback_str = ' '.join(feedback)
 
             if done:
