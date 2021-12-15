@@ -25,7 +25,6 @@ def train(agent, slot_filler, kg, episodes, max_moves, game_path, output_weight_
     replay_store = ReplayMemoryStore(
         batch_size=batch_size, rho=rho, max_size=max_size)
 
-    
     for episode in range(episodes):
         ep_reward = 0
         total_loss = 0
