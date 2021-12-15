@@ -160,8 +160,8 @@ class Vocab(collections.abc.MutableSet):
 
 
 def get_device():
-    # if torch.cuda.is_available():
-    #     return 'cuda'
+    if torch.cuda.is_available():
+        return 'cuda'
     return 'cpu'
 
 

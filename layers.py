@@ -4,6 +4,8 @@ Many of these layers are tailored for low-resource translation (thanks to Toan N
 
 import torch
 
+from dqn.util import get_device
+
 def bmv(w, x):
     """Matrix-vector multiplication that works even if x is a sequence of
     vectors.
@@ -173,8 +175,8 @@ class LinearLayer(torch.nn.Module):
         self.residual = residual
         if residual and input_dims != output_dims:
             raise ValueError("A residual connection requires the same number of input and output dimensions.")
-        self.W = torch.nn.Parameter(torch.empty(output_dims, input_dims))
-        self.b = torch.nn.Parameter(torch.empty(output_dims))
+        self.W = torch.nn.Parameter(torch.empty(output_dims, input_dims, device=get_device()))
+        self.b = torch.nn.Parameter(torch.empty(output_dims, device=get_device()))
         torch.nn.init.normal_(self.W, std=0.01)
         torch.nn.init.normal_(self.b, std=0.01)
 

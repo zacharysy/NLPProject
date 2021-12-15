@@ -154,7 +154,7 @@ if __name__ == "__main__":
     p.add_argument("--train", action="store_true", help="Train")
     p.add_argument("--game_path", default="", help="Path to game")
     p.add_argument("--output_weight_path", default="dqn.pt", help="Output path for generating weights")
-    p.add_argument("--episodes", default=300, help="Number of episodes to train on")
-    p.add_argument("--max_moves", default=1000, help="Max number of moves the agent is allowed")
+    p.add_argument("--episodes", default=300, type=int, help="Number of episodes to train on")
+    p.add_argument("--max_moves", default=1000, type=int, help="Max number of moves the agent is allowed")
 
     main(p.parse_args())
