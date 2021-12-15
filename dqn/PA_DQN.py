@@ -12,12 +12,12 @@ class Encoder(torch.nn.Module):
             torch.empty(3*dims, dims, device=get_device()))
 
         self.sa1 = SelfAttention(dims=dims)
-        self.sa2 = SelfAttention(dims=dims)
-        self.sa3 = SelfAttention(dims=dims)
+        # self.sa2 = SelfAttention(dims=dims)
+        # self.sa3 = SelfAttention(dims=dims)
 
         self.ll1 = LinearLayer(input_dims=dims, output_dims=dims)
-        self.ll2 = LinearLayer(input_dims=dims, output_dims=dims)
-        self.ll3 = LinearLayer(input_dims=dims, output_dims=dims)
+        # self.ll2 = LinearLayer(input_dims=dims, output_dims=dims)
+        # self.ll3 = LinearLayer(input_dims=dims, output_dims=dims)
 
         torch.nn.init.normal_(self.fpos, std=.01, mean=0.0)
 
@@ -26,15 +26,18 @@ class Encoder(torch.nn.Module):
             words), device=get_device())
         v += self.fpos[:len(words)]
 
-        sa1 = self.sa1(v)
-        ll1 = self.ll1(sa1)
+        # sa1 = self.sa1(v)
+        # ll1 = self.ll1(sa1)
 
-        sa2 = self.sa2(ll1)
-        ll2 = self.ll2(sa2)
+        # sa2 = self.sa2(ll1)
+        # ll2 = self.ll2(sa2)
 
-        sa3 = self.sa3(ll2)
-        ll3 = self.ll3(sa3)
-        return ll3[0]
+        # sa3 = self.sa3(ll2)
+        # ll3 = self.ll3(sa3)
+        # return ll3[0]
+        # return ll1[0]
+        # print(torch.mean(v, dim=0).shape)
+        return torch.mean(v, dim=0)
 
 
 class FF(torch.nn.Module):
@@ -43,7 +46,7 @@ class FF(torch.nn.Module):
         self.ll1 = LinearLayer(input_dims=dims, output_dims=1)
         # self.ll2 = LinearLayer(input_dims=dims, output_dims=1)
         # self.ll3 = LinearLayer(input_dims=dims, output_dims=1)
-        self.relu = torch.nn.ReLU()
+        # self.relu = torch.nn.ReLU()
 
     def forward(self, encoding):
         ll1 = self.ll1(encoding)
@@ -70,3 +73,6 @@ class PA_DQN(torch.nn.Module):
 
     def forward(self, encoding):
         return self.ff.forward(encoding)
+
+    def save(self, filename):
+        torch.save(self.state_dict(), filename)

@@ -5,6 +5,14 @@ import torch
 from MA_DQN import MA_DQN
 from PA_DQN import PA_DQN
 from util import ReplayMemory, Vocab
+from pprint import pprint
+
+
+def bad_feedback(feedback):
+    # f = ' '.join(feedback)
+    return "you don't" in feedback or "you can't" in feedback or "i don't" in feedback or \
+        "i can't" in feedback or "?" in feedback or len(
+            feedback.split(' ')) < 10
 
 
 class DQAgent(textworld.Agent, abc.ABC):
@@ -14,16 +22,17 @@ class DQAgent(textworld.Agent, abc.ABC):
     @abc.abstractmethod
     def exploit(self): pass
 
-    def act(self, game_state, reward, done):
-        while len(self.state) > 1 and self.state[-1].feedback == game_state.feedback:
+    def act(self, game_state):
+        while len(self.state) > 1 and self.state[-1] == ' '.join(game_state):
             self.state.pop()
-        self.state.append(game_state)
-        return self.callModel(self.state[-1].feedback)
+        if len(self.state) <= 1 or not bad_feedback(' '.join(game_state)):
+            self.state.append(' '.join(game_state))
+        return self.callModel(self.state[-1].split(' '))
 
-    @abc.abstractmethod
+    @ abc.abstractmethod
     def callModel(self): pass
 
-    @abc.abstractmethod
+    @ abc.abstractmethod
     def loss_args(self): pass
 
     def save(self, filename):
@@ -61,8 +70,7 @@ class MA_DQAgent(DQAgent):
         else:
             enc = self.dqn.encode(text)
             action_num = self.exploit(enc)
-        self.epsilon -= (self.init_epsilon - self.end_epsilon) / \
-            self.max_moves
+        self.epsilon -= (self.init_epsilon - self.end_epsilon) / self.max_moves
         return self.action_vocab.denumberize(action_num)
 
     def loss_args(self, r, t: ReplayMemory):
@@ -79,6 +87,8 @@ class PA_DQAgent(DQAgent):
                  init_epsilon=1, end_epsilon=0.2, rho=0.25, gamma=0.5, transitions=1000):
         self.dqn = PA_DQN(
             dims, embedding_path) if not dqn_weights else torch.load(dqn_weights)
+        self.target_network = PA_DQN(dims, embedding_path)
+        self.target_network.eval()
         self.dims = dims
         self.state = []
         self.init_epsilon = init_epsilon
@@ -90,15 +100,29 @@ class PA_DQAgent(DQAgent):
         # remove when slot filler done
         self.action_vocab = action_vocab
 
+        self.update_target_network()
+
+    def update_target_network(self):
+        self.target_network.load_state_dict(self.dqn.state_dict())
+
     def explore(self):
         action = choice(self.action_vocab.num_to_word)
         return action.split(' ')
 
-    def exploit(self, text, output=False):
+    def exploit(self, text, output=False, use_target_network=False):
         rewards = {}
         for action in self.action_vocab:
-            encoding = self.dqn.encode(text, action.split(' '))
-            rewards[action] = self.dqn(encoding)
+            # encoding = self.dqn.encode(text, action.split(' '))
+            # network = self.dqn if not use_target_network else self.target_network
+            if use_target_network:
+                with torch.no_grad():
+                    encoding = self.target_network.encode(
+                        text, action.split(' ')).detach()
+                    rewards[action] = self.target_network(encoding).detach()
+            else:
+                encoding = self.dqn.encode(text, action.split(' '))
+                rewards[action] = self.dqn(encoding)
+
         max_action = max(rewards, key=rewards.get)
         if output:
             print('exploiting...', max_action)
@@ -111,10 +135,22 @@ class PA_DQAgent(DQAgent):
         return action
 
     def loss_args(self, r, t: ReplayMemory):
-        max_action = self.exploit(t.s_next, output=False)
-        next_enc = self.dqn.encode(
-            t.s_next, max_action)
+        max_action = self.exploit(
+            t.s_next, output=False, use_target_network=True)
+        with torch.no_grad():
+            next_enc = self.target_network.encode(
+                t.s_next, max_action).detach()
+            max_r = torch.max(self.target_network(next_enc).detach())
+            y = r + (self.gamma * max_r)
+
         curr_enc = self.dqn.encode(t.s_t, t.a_t)
-        max_r = torch.max(self.dqn(next_enc))
-        y = r + (self.gamma * max_r)
-        return y, self.dqn(curr_enc)[0]
+
+        return y.detach(), self.dqn(curr_enc)[0]
+
+        # max_action = self.exploit(t.s_next, output=False)
+        # next_enc = self.dqn.encode(
+        #     t.s_next, max_action)
+        # curr_enc = self.dqn.encode(t.s_t, t.a_t)
+        # max_r = torch.max(self.dqn(next_enc))
+        # y = r + (self.gamma * max_r)
+        # return y, self.dqn(curr_enc)[0]
