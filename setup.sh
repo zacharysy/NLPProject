@@ -16,6 +16,7 @@ pip install -U bs4
 pip install -U diaparser # Dependency Parser
 pip install -U pymagnitude # Word Embeddings helper
 pip install -U nltk
+pip install -U scikit-learn
 pip install -U stanford-openie
 python -m nltk.downloader all
 python -m spacy download en_core_web_trf
