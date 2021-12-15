@@ -24,7 +24,7 @@ class Benchmark:
         self.levels = 30
         self.trials = 50
         self.max_moves = 1000
-        self.levels_step = 4
+        self.levels_step = 1
         self.save_to = None
 
     # Create a single treasure_hunter game with the given level and saves it to self.games_root
