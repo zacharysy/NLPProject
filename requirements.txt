@@ -1,0 +1,8 @@
+textworld
+tqdm
+bs4
+diaparser # Dependency Parser
+pymagnitude # Word Embeddings helper
+nltk
+scikit-learn
+stanford-openie
