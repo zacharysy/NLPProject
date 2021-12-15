@@ -15,8 +15,11 @@ def generate_actions(text: str, kg: KnowledgeGraph, slot_filler):
     candidate_phrases = ["take all", "n", "s", "w", "e", "ne", "nw", "se", "sw", "u", "d", "inventory", "look"]
 
     for noun_set in candidate_nouns:
-		if self.slot_fill_type == "heuristic":
+        # Heuristic slot filler
+		if slot_filler.slot_fill_type == "heuristic":
 			candidate_phrases += slot_filler.createActionSet(noun_set)
+
+        # Learned slot filler
 		else:
         	if len(noun_set) == 1:
             	slot_filler_out = slot_filler.get_full_sentence(noun_set)
@@ -24,13 +27,6 @@ def generate_actions(text: str, kg: KnowledgeGraph, slot_filler):
         	else:
             	slot_filler_out = slot_filler.get_full_sentence(noun_set[0] + ['<SEP>'] + noun_set[1])
 
-        	noun_result = []
-        	for i in slot_filler_out:
-            	if type(i) is list:
-                	noun_result += i
-            	else:
-                	noun_result.append(i)
-
-			candidate_phrases.append(noun_result)
+			candidate_phrases.append(slot_filler_out)
 
     return candidate_phrases

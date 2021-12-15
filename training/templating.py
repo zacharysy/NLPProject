@@ -316,6 +316,8 @@ class AssignmentClassifier(nn.Module):
         self.verb_clusters = verb_clusters
         self.prep_clusters = prep_clusters
 
+        self.slot_fill_type = 'learned'
+
         # Initialize layers
         self.embedding = layers.Embedding(len(word_vocab), attention_size)
         self.attention = [layers.SelfAttention(attention_size) for _ in range(num_attention_layers)]
@@ -416,18 +418,23 @@ class AssignmentClassifier(nn.Module):
 
         return verb_choice, prep_choice
 
-    def get_full_sentence(self, in_words: [str], mode: str = 'top') -> [str]:
+    def get_full_sentence(self, in_words: [str], num_responses: int, mode: str = 'top') -> [[str]]:
         # Get classification results
         class_probs = self.forward(in_words)
-        best_class = torch.argmax(class_probs).item()
+        best_classes = torch.topk(class_probs)[1]
 
-        # Get corresponding verbs
-        class_words = self.get_class_words(best_class, mode)
+        out = []
+        for class_idx in best_classes:
+            class_idx = class_idx.item()
 
-        if len(class_words) == 2 and len(in_words) == 2:
-            return [class_words[0], in_words[0], class_words[1], in_words[1]]
+            class_words = self.get_class_words(class_idx, mode)
 
-        return [class_words[0], in_words[0]]
+            if len(class_words) == 2 and len(in_words) == 2:
+                out.append([class_words[0], *in_words[0], class_words[1], *in_words[1]])
+
+            out.append([class_words[0], *in_words[0]])
+
+        return out
 
 
 def load_model(csv_path: pathlib.Path,
