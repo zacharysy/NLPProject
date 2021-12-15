@@ -10,6 +10,7 @@ from argparse import ArgumentParser
 
 # Import local libraries
 import training.templating as templating
+from heuristicSlotFilling.classifier import ActionGenerator
 import knowledgeGraph.graph as graph
 from dqn.DQAgent import PA_DQAgent, bad_feedback
 from dqn.util import ReplayMemory, ReplayMemoryStore, get_device, preprocess_line
@@ -105,7 +106,7 @@ def main(args):
 
     # Load the slot filler
     if args.slot_method == 'heuristic':
-        pass
+        slot_filler = ActionGenerator()
 
     if args.slot_method == 'learned':
         slot_filler, _ = templating.load_model(args.slot_fill_csv_path,
@@ -115,11 +116,12 @@ def main(args):
                                                args.slot_fill_num_prep_clusters,
                                                weight_path=args.slot_fill_weight_path)
 
+
     kg = graph.KnowledgeGraph()
-    
+
     if args.agent_weight_path:
-        salad_agent = PA_DQAgent(dqn_weights=args.agent_weight_path, 
-            embedding_path=args.embedding_path, transitions=args.max_moves*args.episodes) 
+        salad_agent = PA_DQAgent(dqn_weights=args.agent_weight_path,
+            embedding_path=args.embedding_path, transitions=args.max_moves*args.episodes)
     else:
         PA_DQAgent(embedding_path=args.embedding_path, transitions=args.max_moves*args.episodes)
 
