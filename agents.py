@@ -1,17 +1,3 @@
-<<<<<<< HEAD:BaseAgent.py
-from dqn.MA_DQN import MA_DQN
-from textworld.core import GameState
-=======
-from __future__ import annotations
-import sys
-sys.path.append("./")
-
-from baseline.nounverb import NounVerb
-import random
-import re
-import spacy
-from pprint import pprint
->>>>>>> main:agents.py
 import translation.rnn as rnn
 from translation.transformer import TranslationVocab, Encoder, Decoder, TranslationModel
 import torch
