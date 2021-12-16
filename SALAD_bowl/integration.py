@@ -26,7 +26,8 @@ def generate_actions(text: str, kg: KnowledgeGraph, slot_filler):
 
             else:
                 slot_filler_out = slot_filler.get_full_sentence(noun_set[0].split(' ') + ['<SEP>'] + noun_set[1].split(' '), 5, mode='top5')
+            slot_filler_out = [' '.join(i) for i in slot_filler_out]
 
-            candidate_phrases.append(slot_filler_out)
+            candidate_phrases += slot_filler_out
 
     return candidate_phrases
