@@ -131,7 +131,7 @@ class DQAgent(textworld.Agent, abc.ABC):
 class PA_DQAgent(DQAgent):
     def __init__(self, dims=50, embedding_path=None, dqn_weights=None,
                  init_epsilon=1, end_epsilon=0.2, rho=0.25, gamma=0.5, transitions=1000,
-                 slot_filler=None, knowledge_graph=None, slot_filler_weights=None,
+                 slot_filler=None, knowledge_graph=None, # slot_filler_weights=None,
                  should_train=True):
         self.dqn = PA_DQN(
                     dims, embedding_path)
@@ -147,7 +147,7 @@ class PA_DQAgent(DQAgent):
         self.rho = rho
         self.gamma = gamma
         self.transitions = transitions
-        self.slot_filler = slot_filler if not slot_filler_weights else torch.load(slot_filler_weights)
+        self.slot_filler = slot_filler # if not slot_filler_weights else torch.load(slot_filler_weights)
         self.knowledge_graph = knowledge_graph
         self.should_train = should_train
 
