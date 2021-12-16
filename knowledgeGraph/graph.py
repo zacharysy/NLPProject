@@ -30,6 +30,12 @@ class KnowledgeGraph:
         # Save client
         self.client = StanfordOpenIE(properties=self.OPENIE_PROPERTIES)
 
+    def flush(self):
+        self.states = []
+        self.inventory = []
+        self.location = None
+        self.prev_scene = None
+
     def push_state(self, state):
         """
         Push the current state to the previous states
