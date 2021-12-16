@@ -17,9 +17,10 @@ class KnowledgeGraph:
         'openie.affinity_probability_cap': 2 / 3,
     }
 
-    def __init__(self, num_prev_states: int = 5):
+    def __init__(self, num_prev_states: int = 5, inventory_size: int = 100):
         # Log inputs
         self.num_prev_states = num_prev_states
+        self.inventory_size = inventory_size
 
         self.states = []
         self.inventory = []
@@ -42,9 +43,12 @@ class KnowledgeGraph:
 
         for line in scene.split('\n'):
             if ':' in line:
-                new_items.append(line.split(':')[0])
+                line_split = line.split(':')[0]
+                if line_split not in self.inventory:
+                    new_items.append(line_split)
 
-        self.inventory += new_items
+        self.inventory = list(set(new_items)) + self.inventory
+        self.inventory = self.inventory[:self.inventory_size]
 
         return len(new_items) > 0
 

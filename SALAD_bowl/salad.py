@@ -87,9 +87,11 @@ def train(agent, episodes, max_moves, game_path, output_weight_path):
 
                     total_loss += loss.detach().item()
 
+
             if done:
                 break
 
+        agent.dqn.save(output_weight_path)
         print(
             f"EPISODE: {episode}\nDONE: {done}\nREWARD: {reward}\nN UNIQUE STATES: {len(unique_states)}\nEPSILON: {agent.epsilon}\nSYNTHETIC REWARD: {ep_reward}")
 
