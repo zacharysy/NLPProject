@@ -5,6 +5,7 @@ tmp/
 .nlp_venv/
 */games/*
 */__pycache__/*
+__pycache__
 novels.txt
 *.magnitude
 depTuples.csv

@@ -1,7 +1,7 @@
 import torch
 import pymagnitude
 from layers import LinearLayer, SelfAttention
-from util import get_device
+from .util import get_device
 
 
 class Encoder(torch.nn.Module):
@@ -36,7 +36,6 @@ class Encoder(torch.nn.Module):
         # ll3 = self.ll3(sa3)
         # return ll3[0]
         # return ll1[0]
-        # print(torch.mean(v, dim=0).shape)
         return torch.mean(v, dim=0)
 
 
@@ -44,18 +43,18 @@ class FF(torch.nn.Module):
     def __init__(self, dims: int):
         super().__init__()
         self.ll1 = LinearLayer(input_dims=dims, output_dims=1)
-        self.ll2 = LinearLayer(input_dims=dims, output_dims=1)
+        # self.ll2 = LinearLayer(input_dims=dims, output_dims=1)
         # self.ll3 = LinearLayer(input_dims=dims, output_dims=1)
         # self.relu = torch.nn.ReLU()
 
     def forward(self, encoding):
         ll1 = self.ll1(encoding)
         # relu1 = self.relu(ll1)
-        ll2 = self.ll2(ll1)
+        # ll2 = self.ll2(ll1)
         # relu2 = self.relu(ll2)
         # ll3 = self.ll3(relu2)
         # return ll3
-        return ll2
+        return ll1
 
 
 class PA_DQN(torch.nn.Module):

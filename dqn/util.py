@@ -53,10 +53,10 @@ def read_data():
     for i, line in enumerate(open('./zork_transcript.txt', 'r')):
         if line.startswith('>'):
             actions.add(line[1:].strip())
-            v = ' '.join(preprocess_line(v.strip(), start_symbol=CLS))
+            v = ' '.join(preprocess_line(v.strip()))
             v = ""
         else:
-            words |= preprocess_line(line, start_symbol=CLS)
+            words |= preprocess_line(line)
             if i != 0:
                 v += line
 
@@ -159,13 +159,6 @@ class Vocab(collections.abc.MutableSet):
         return self.num_to_word[num]
 
 
-def generate_actions(correct_action, action_vocab: Vocab):
-    options = [
-        correct_action, *[choice(action_vocab.num_to_word) for _ in range(3)]
-    ]
-    return options
-
-
 def get_device():
     # if torch.cuda.is_available():
     #     return 'cuda'
@@ -183,3 +176,7 @@ def progress(iterable):
             return iterable
     else:
         return iterable
+
+def bad_feedback(feedback):
+    return "you don't" in feedback or "you can't" in feedback or "i don't" in feedback or \
+        "i can't" in feedback  or "there is no" in feedback

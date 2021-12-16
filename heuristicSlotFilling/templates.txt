@@ -1,0 +1,40 @@
+look
+inventory
+north
+south
+east
+west
+northwest
+northeast
+southwest
+southeast
+up
+down
+take all
+take <portable>
+drop <portable>
+eat <edible>
+drink <edible>
+move <moveable>
+push <moveable>
+pull <moveable>
+drag <moveable>
+lift <moveable>
+turn on <switchable>
+turn off <switchable>
+light <flammable>
+turn on <flammable>
+open <openable>
+close <openable>
+lock <lockable>
+unlock <lockable>
+unlock <lockable> with <portable>
+search <container>
+take all from <container>
+put <portable> in <container>
+put <portable> on <container>
+talk to <person>
+give <portable> to <person>
+throw <portable> at <enemy>
+hit <enemy> with <portable>
+kill <enemy> with <portable>

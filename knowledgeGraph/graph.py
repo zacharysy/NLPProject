@@ -17,15 +17,24 @@ class KnowledgeGraph:
         'openie.affinity_probability_cap': 2 / 3,
     }
 
-    def __init__(self, num_prev_states: int = 5):
+    def __init__(self, num_prev_states: int = 5, inventory_size: int = 100):
         # Log inputs
         self.num_prev_states = num_prev_states
+        self.inventory_size = inventory_size
 
         self.states = []
+        self.inventory = []
+        self.location = None
+        self.prev_scene = None
 
         # Save client
         self.client = StanfordOpenIE(properties=self.OPENIE_PROPERTIES)
 
+    def flush(self):
+        self.states = []
+        self.inventory = []
+        self.location = None
+        self.prev_scene = None
 
     def push_state(self, state):
         """
@@ -34,6 +43,20 @@ class KnowledgeGraph:
 
         self.states = [state] + self.states
         self.states = self.states[:self.num_prev_states]
+
+    def update_inventory(self, scene: str) -> bool:
+        new_items = []
+
+        for line in scene.split('\n'):
+            if ':' in line:
+                line_split = line.split(':')[0]
+                if line_split not in self.inventory:
+                    new_items.append(line_split)
+
+        self.inventory = list(set(new_items)) + self.inventory
+        self.inventory = self.inventory[:self.inventory_size]
+
+        return len(new_items) > 0
 
     def construct_state(self, scene: str):
         """
@@ -47,6 +70,16 @@ class KnowledgeGraph:
 
         subject ----(relation)----> object
         """
+
+        # Handle simple state
+        if self.prev_scene is None:
+            self.prev_scene = scene
+
+        if self.update_inventory(scene):
+            scene = self.prev_scene
+
+        for item in self.inventory:
+            scene += f' You have {item}.'
 
         # Run through the client
         annotations = self.client.annotate(scene)
@@ -67,6 +100,7 @@ class KnowledgeGraph:
 
                 if words[1] == 'are in':
                     words[1] = "'ve entered"
+                    self.location = words[2]
 
             relations.append(words)
 
@@ -83,6 +117,30 @@ class KnowledgeGraph:
 
         state = idx_to_entity, entity_to_idx, adj_mat
         self.push_state(state)
+
+    def create_nouns(self):
+        """
+        Get all nouns or noun pairs from the graph/inventory
+        """
+        noun_pairs = []
+
+        # Handle inventory first
+        for item in self.inventory:
+            noun_pairs.append((item,))
+
+        # Handle the graph
+        root_nodes = [self.location, 'you'] if self.location is not None else ['you']
+
+        idx_to_entity, entity_to_idx, adj_mat = self.states[0]
+
+        for root_node in root_nodes:
+            if root_node in entity_to_idx:
+                mat_row = adj_mat[entity_to_idx[root_node]]
+                child_idxs = [i for i, item in enumerate(mat_row) if item is not None]
+                children = [idx_to_entity[i] for i in child_idxs]
+                noun_pairs += [(i, ) for i in children]
+
+        return noun_pairs
 
 if __name__ == '__main__':
     kg = KnowledgeGraph()

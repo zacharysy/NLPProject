@@ -1,5 +1,10 @@
 from __future__ import annotations
+import abc
 import sys
+from SALAD_bowl.integration import generate_actions
+
+from dqn.PA_DQN import PA_DQN
+from dqn.util import ReplayMemory, bad_feedback
 sys.path.append("./")
 
 from baseline.nounverb import NounVerb
@@ -9,6 +14,7 @@ import spacy
 from pprint import pprint
 import translation.rnn as rnn
 from translation.transformer import TranslationVocab, Encoder, Decoder, TranslationModel
+from random import choice, random
 import torch
 
 import textworld
@@ -68,7 +74,8 @@ class TransformerAgent(textworld.Agent):
         while self.state[-1].feedback == game_state.feedback and len(self.state) > 1:
             self.state.pop()
 
-        text = re.sub("(\W|_)+", " ", self.state[-1].feedback).strip().lower().split() + ["<EOS>"]
+        text = re.sub(
+            "(\W|_)+", " ", self.state[-1].feedback).strip().lower().split() + ["<EOS>"]
 
         return self.callModel(text)
 
@@ -96,25 +103,105 @@ class RNNAgent(textworld.Agent):
         return ''.join(prediction)
 
 
-class DQAgent(textworld.Agent):
-    def __init__(self, encoder_weights=None, ff_weights=None):
-        self.encoder = torch.load(
-            encoder_weights) if encoder_weights else encoder_weights
-        self.ff = torch.load(
-            ff_weights) if ff_weights else ff_weights
-        self.state = []
+class DQAgent(textworld.Agent, abc.ABC):
+    @abc.abstractmethod
+    def explore(self): pass
 
-    def act(self, game_state, reward, done):
-        while len(self.state) > 1 and self.state[-1].feedback == game_state.feedback:
+    @abc.abstractmethod
+    def exploit(self): pass
+
+    def act(self, game_state, reward=None, done=False):
+        game_state_str = ' '.join(game_state)
+        while len(self.state) > 1 and self.state[-1] == game_state_str:
             self.state.pop()
-        self.state.append(game_state)
-        return self.callModel(self.state[-1].feedback)
+        if not bad_feedback(game_state_str):
+            self.state.append(game_state_str)
+        return self.callModel(self.state[-1].split(' '))
 
-    def callModel(self, action_num):
-        # text = rnn.preprocess_line(text)
-        # prediction = rnn.predict(self.model, text)
-        # return ''.join(prediction)
-        return self.ff.action_vocab.denumberize(action_num)
+    @ abc.abstractmethod
+    def callModel(self): pass
+
+    @ abc.abstractmethod
+    def loss_args(self): pass
+
+    def save(self, filename):
+        return torch.save(self.dqn, filename)
+
+
+class PA_DQAgent(DQAgent):
+    def __init__(self, dims=50, embedding_path=None, dqn_weights=None,
+                 init_epsilon=1, end_epsilon=0.2, rho=0.25, gamma=0.5, transitions=1000,
+                 slot_filler=None, knowledge_graph=None, slot_filler_weights=None,
+                 should_train=True):
+        self.dqn = PA_DQN(
+                    dims, embedding_path)
+        if dqn_weights:
+            self.dqn.load_state_dict(torch.load(dqn_weights))
+        self.target_network = PA_DQN(dims, embedding_path)
+        self.target_network.eval()
+        self.dims = dims
+        self.state = []
+        self.init_epsilon = init_epsilon
+        self.epsilon = init_epsilon
+        self.end_epsilon = end_epsilon
+        self.rho = rho
+        self.gamma = gamma
+        self.transitions = transitions
+        self.slot_filler = slot_filler if not slot_filler_weights else torch.load(slot_filler_weights)
+        self.knowledge_graph = knowledge_graph
+        self.should_train = should_train
+
+        self.update_target_network()
+
+    def update_target_network(self):
+        self.target_network.load_state_dict(self.dqn.state_dict())
+
+    def reset_graph(self):
+        self.knowledge_graph.flush()
+
+    def explore(self, text):
+        actions = generate_actions(text, self.knowledge_graph, self.slot_filler)
+        action = choice(actions)
+        return action.split(' ')
+
+    def exploit(self, text, output=False, use_target_network=False):
+        rewards = {}
+        actions = generate_actions(text, self.knowledge_graph, self.slot_filler)
+
+        for action in actions:
+            if use_target_network:
+                with torch.no_grad():
+                    encoding = self.target_network.encode(
+                        text, action.split(' ')).detach()
+                    rewards[action] = self.target_network(encoding).detach()
+            else:
+                encoding = self.dqn.encode(text, action.split(' '))
+                rewards[action] = self.dqn(encoding)
+
+        max_action = max(rewards, key=rewards.get)
+        if output:
+            print('exploiting...', max_action)
+        return max_action.split(' ')
+
+    def callModel(self, text):
+        action = self.explore(text) if random() < self.epsilon else self.exploit(text, output=False)
+        if self.should_train:
+            self.epsilon -= (self.init_epsilon - self.end_epsilon) / \
+                self.transitions
+        return action
+
+    def loss_args(self, r, t: ReplayMemory):
+        max_action = self.exploit(
+            t.s_next, output=False, use_target_network=self.should_train)
+        with torch.no_grad():
+            next_enc = self.target_network.encode(
+                t.s_next, max_action).detach()
+            max_r = torch.max(self.target_network(next_enc).detach())
+            y = r + (self.gamma * max_r)
+
+        curr_enc = self.dqn.encode(t.s_t, t.a_t)
+
+        return y.detach(), self.dqn(curr_enc)[0]
 
 
 if __name__ == "__main__":
