@@ -24,8 +24,8 @@ import training.templating as templating
 
 
 class Benchmark:
-    def __init__(self):
-        self.games_root = "./benchmark/games"
+    def __init__(self, games_root="./benchmark/games"):
+        self.games_root = games_root
         self.levels = 30
         self.trials = 6
         self.max_moves = 1000
@@ -206,7 +206,11 @@ class Benchmark:
         return f"Saved results to {self.save_to}"
 
 def main(args):
-    benchmark = Benchmark()
+    if args.games_path is not None:
+        benchmark = Benchmark(games_root=args.games_path)
+    else:
+        benchmark = Benchmark()
+    
     benchmark.save_to = args.save
 
 
@@ -265,6 +269,7 @@ if __name__ == "__main__":
         "--type", choices=["treasure", "zork"], help="Which kind of benchmark to run")
     parser.add_argument(
         "--save", type=str, help="JSON file to save the benchmark results in")
+    parser.add_argument("--games_path", type=str, help="when used with '--generate' is the folder to save the games in. when used with '--type treasure' is the path to the games")
     parser.add_argument("--agent_weights", help="Path to weights of SALAD's DQN")
     parser.add_argument("--slot_filler_weights", help="Path to weights of SALAD's slot filler")
     parser.add_argument("--embedding_path", help="Path to word embeddings")
