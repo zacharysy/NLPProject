@@ -26,8 +26,8 @@ import training.templating as templating
 class Benchmark:
     def __init__(self):
         self.games_root = "./benchmark/games"
-        self.levels = 30
-        self.trials = 50
+        self.levels = 10
+        self.trials = 6
         self.max_moves = 1000
         self.levels_step = 1
         self.save_to = None
