@@ -148,6 +148,10 @@ class Benchmark:
         env = textworld.start(game_path)
         game_state = env.reset()
         reward, done, moves = 0, False, 0
+        try:
+            agent.flush_graph()
+        except AttributeError:
+            pass
 
         while not done and moves < max_moves:
             command = agent.act(game_state, reward, done)
@@ -173,6 +177,11 @@ class Benchmark:
         reward, done, moves = 0, False, 0
 
         while not done and moves < self.max_moves:
+            try:
+                agent.flush_graph()
+            except AttributeError:
+                pass
+
             moves += 1
             command = agent.act(game_state, reward, done)
             print(game_state.feedback.strip())
