@@ -36,7 +36,6 @@ class Encoder(torch.nn.Module):
         # ll3 = self.ll3(sa3)
         # return ll3[0]
         # return ll1[0]
-        # print(torch.mean(v, dim=0).shape)
         return torch.mean(v, dim=0)
 
 

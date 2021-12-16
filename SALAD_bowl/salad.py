@@ -12,12 +12,12 @@ from argparse import ArgumentParser
 import training.templating as templating
 from heuristicSlotFilling.classifier import ActionGenerator
 import knowledgeGraph.graph as graph
-from dqn.DQAgent import PA_DQAgent, bad_feedback
-from dqn.util import CLS, ReplayMemory, ReplayMemoryStore, get_device, preprocess_line
+from agents import PA_DQAgent
+from dqn.util import ReplayMemory, ReplayMemoryStore, get_device, preprocess_line, bad_feedback
 
 
 def train(agent, episodes, max_moves, game_path, output_weight_path):
-    batch_size = 64
+    batch_size = 36
     rho = 0.25
     max_size = 50000
     optim = torch.optim.Adam(agent.dqn.parameters(), lr=0.01)

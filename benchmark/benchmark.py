@@ -1,8 +1,12 @@
 from __future__ import annotations
 import sys
+
+from heuristicSlotFilling.classifier import ActionGenerator
+
 sys.path.append("./")
 
-from agents import RNNAgent, BaselineAgent, TransformerAgent
+from agents import RNNAgent, BaselineAgent, TransformerAgent, PA_DQAgent
+from dqn import PA_DQN
 from translation.transformer import TranslationVocab, Encoder, Decoder, TranslationModel
 import argparse
 from collections import defaultdict
@@ -15,6 +19,8 @@ import textworld
 from textworld.generator.game import GameOptions
 from textworld.generator import compile_game
 from translation.rnn import *
+import knowledgeGraph.graph as graph        
+import training.templating as templating
 # from baseline.ExampleAgent import CustomAgent
 
 
@@ -145,6 +151,8 @@ class Benchmark:
 
         while not done and moves < max_moves:
             command = agent.act(game_state, reward, done)
+            if isinstance(command, list):
+                command = ' '.join(command)
             game_state, reward, done = env.step(command)
             moves += 1
 
@@ -206,6 +214,27 @@ def main(args):
         agent = RNNAgent()
     elif args.agent == "transformer":
         agent = TransformerAgent()
+    elif args.agent == "salad-l":
+        slot_filler, _ = templating.load_model(args.slot_fill_csv_path,
+                                               args.slot_fill_tsv_path,
+                                               args.embedding_path,
+                                               args.slot_fill_num_verb_clusters,
+                                               args.slot_fill_num_prep_clusters,
+                                               weight_path=args.slot_fill_weight_path)
+        agent = PA_DQAgent(embedding_path=args.embedding_path,
+                            dqn_weights=args.agent_weights,
+                            slot_filler_weights=args.slot_filler_weights,
+                            knowledge_graph=graph.KnowledgeGraph(),
+                            slot_filler=slot_filler,
+                            init_epsilon=0.1,
+                            should_train=False)
+    elif args.agent == "salad-h":
+        agent = PA_DQAgent(embedding_path=args.embedding_path,
+                            dqn_weights=args.agent_weights,
+                            knowledge_graph=graph.KnowledgeGraph(),
+                            slot_filler=ActionGenerator(),
+                            init_epsilon=0.1,
+                            should_train=False)
     else:
         print("Agent not recognized")
         return 0
@@ -224,11 +253,14 @@ if __name__ == "__main__":
     parser.add_argument("--generate", action="store_true",
                         help="Create the benchmark games")
     parser.add_argument(
-        "--agent", choices=["baseline", "rnn", "transformer"], help="Which game agent to use")
+        "--agent", choices=["baseline", "rnn", "transformer", "salad-h", "salad-l"], help="Which game agent to use")
     parser.add_argument(
         "--type", choices=["treasure", "zork"], help="Which kind of benchmark to run")
     parser.add_argument(
         "--save", type=str, help="JSON file to save the benchmark results in")
+    parser.add_argument("--agent_weights", help="Path to weights of SALAD's DQN")
+    parser.add_argument("--slot_filler_weights", help="Path to weights of SALAD's slot filler")
+    parser.add_argument("--embedding_path", help="Path to word embeddings")
 
     args = parser.parse_args()
     main(args)

@@ -160,8 +160,8 @@ class Vocab(collections.abc.MutableSet):
 
 
 def get_device():
-    if torch.cuda.is_available():
-        return 'cuda'
+    # if torch.cuda.is_available():
+    #     return 'cuda'
     return 'cpu'
 
 
@@ -176,3 +176,7 @@ def progress(iterable):
             return iterable
     else:
         return iterable
+
+def bad_feedback(feedback):
+    return "you don't" in feedback or "you can't" in feedback or "i don't" in feedback or \
+        "i can't" in feedback  or "there is no" in feedback
