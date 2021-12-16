@@ -96,7 +96,7 @@ def train(agent, episodes, max_moves, game_path, output_weight_path):
         if episode % 5 == 0:
             agent.update_target_network()
 
-    agent.dqn.save(output_weight_path)
+        agent.dqn.save(output_weight_path)
 
 
 def main(args):
