@@ -156,6 +156,8 @@ class PA_DQAgent(DQAgent):
     def update_target_network(self):
         self.target_network.load_state_dict(self.dqn.state_dict())
 
+    def reset_graph(self):
+        self.knowledge_graph.flush()
 
     def explore(self, text):
         actions = generate_actions(text, self.knowledge_graph, self.slot_filler)

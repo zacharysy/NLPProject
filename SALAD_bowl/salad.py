@@ -34,6 +34,7 @@ def train(agent, episodes, max_moves, game_path, output_weight_path):
         reward, done, moves = 0, False, 0
         desc = preprocess_line(game_state['raw'])
         unique_states = {' '.join(desc)}
+        agent.reset_graph()
 
         for t in tqdm.tqdm(range(max_moves)):
             action = agent.act(desc)
