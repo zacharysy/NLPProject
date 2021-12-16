@@ -26,7 +26,7 @@ import training.templating as templating
 class Benchmark:
     def __init__(self):
         self.games_root = "./benchmark/games"
-        self.levels = 10
+        self.levels = 30
         self.trials = 6
         self.max_moves = 1000
         self.levels_step = 1
@@ -183,9 +183,8 @@ class Benchmark:
 
             moves += 1
             command = agent.act(game_state, reward, done)
-            print(game_state.feedback.strip())
-            print(f"> {command}")
-            print()
+            if isinstance(command, list):
+                command = ' '.join(command)
             game_state, reward, done = env.step(command)
 
         results = {
