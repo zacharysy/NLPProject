@@ -230,11 +230,11 @@ def main(args):
                                                weight_path=args.slot_fill_weight_path)
         agent = PA_DQAgent(embedding_path=args.embedding_path,
                             dqn_weights=args.agent_weights,
-                            slot_filler_weights=args.slot_filler_weights,
                             knowledge_graph=graph.KnowledgeGraph(),
                             slot_filler=slot_filler,
                             init_epsilon=0.1,
                             should_train=False)
+                            # slot_filler_weights=args.slot_filler_weights,
     elif args.agent == "salad-h":
         agent = PA_DQAgent(embedding_path=args.embedding_path,
                             dqn_weights=args.agent_weights,
@@ -268,6 +268,22 @@ if __name__ == "__main__":
     parser.add_argument("--agent_weights", help="Path to weights of SALAD's DQN")
     parser.add_argument("--slot_filler_weights", help="Path to weights of SALAD's slot filler")
     parser.add_argument("--embedding_path", help="Path to word embeddings")
+    parser.add_argument("--slot_fill_weight_path",
+                   help="Path to weights for slot filler")
+    parser.add_argument("--slot_fill_csv_path",
+                   help="Path to CSV data for slot filler",
+                   default='./training/csv_data.csv')
+    parser.add_argument("--slot_fill_tsv_path",
+                   help="Path to TSV data for slot filler",
+                   default='./training/tsv_data.csv')
+    parser.add_argument("--slot_fill_num_verb_clusters",
+                   help="Number of verb clusters slot filler",
+                   type=int,
+                   default=20)
+    parser.add_argument("--slot_fill_num_prep_clusters",
+                   help="Number of preposition clusters slot filler",
+                   type=int,
+                   default=20)
 
     args = parser.parse_args()
     main(args)
