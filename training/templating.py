@@ -421,7 +421,7 @@ class AssignmentClassifier(nn.Module):
     def get_full_sentence(self, in_words: [str], num_responses: int, mode: str = 'top') -> [[str]]:
         # Get classification results
         class_probs = self.forward(in_words)
-        best_classes = torch.topk(class_probs)[1]
+        best_classes = torch.topk(class_probs, num_responses)[1]
 
         out = []
         for class_idx in best_classes:
@@ -429,10 +429,14 @@ class AssignmentClassifier(nn.Module):
 
             class_words = self.get_class_words(class_idx, mode)
 
-            if len(class_words) == 2 and len(in_words) == 2:
-                out.append([class_words[0], *in_words[0], class_words[1], *in_words[1]])
+            response = [class_words[0]]
+            response += in_words[0] if type(in_words[0]) is list else [in_words[0]]
 
-            out.append([class_words[0], *in_words[0]])
+            if len(class_words) == 2 and len(in_words) == 2:
+                response += [class_words[1]]
+                response += in_words[1] if type(in_words[1]) is list else [in_words[1]]
+
+            out.append(response)
 
         return out
 
