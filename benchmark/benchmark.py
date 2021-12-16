@@ -1,10 +1,9 @@
 from __future__ import annotations
 import sys
 
-from heuristicSlotFilling.classifier import ActionGenerator
-
 sys.path.append("./")
 
+from heuristicSlotFilling.classifier import ActionGenerator
 from agents import RNNAgent, BaselineAgent, TransformerAgent, PA_DQAgent
 from dqn import PA_DQN
 from translation.transformer import TranslationVocab, Encoder, Decoder, TranslationModel
@@ -19,7 +18,7 @@ import textworld
 from textworld.generator.game import GameOptions
 from textworld.generator import compile_game
 from translation.rnn import *
-import knowledgeGraph.graph as graph        
+import knowledgeGraph.graph as graph
 import training.templating as templating
 # from baseline.ExampleAgent import CustomAgent
 

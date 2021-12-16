@@ -52,7 +52,7 @@ class ActionGenerator:
 
 			return single + double
 
-	def getVocab(self, path="slotfillingBackup/target_attribute_scores.csv"):
+	def getVocab(self, path="heuristicSlotFilling/target_attribute_scores.csv"):
 		words = []
 		scores = {}
 
@@ -75,7 +75,7 @@ class ActionGenerator:
 		for attribute in self.attributes:
 			actions[attribute] = set()
 
-		for line in open("slotfillingBackup/templates.txt", "r"):
+		for line in open("heuristicSlotFilling/templates.txt", "r"):
 			foundAttributes = map(lambda x: x.replace("<","").replace(">", ""), re.findall("<\w+>", line))
 
 			for attribute in foundAttributes:
