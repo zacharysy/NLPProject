@@ -60,39 +60,28 @@ python3 benchmark/benchmark.py --type <type> --agent <agent>
 ## Baseline
 - The baseline can be found in `agents.py` as `BaselineAgent`
 
-### Outline
-1. Gather a corpus of fiction novels stored in a text file where
-   each line of the text file is one sentence from a novel
-2. Use [spaCy](https://spacy.io/) to extract the main noun and
-   verb from each sentence in the training data to create a
-   reduced list of noun/verb pairs
-3. Implement a lookup table which can transform a verb to its
-   present-tense form and use it to convert all verbs from
-   step 2 into the present tense
-4. Create a probability distribution similar to a bigram language
-   model which learns `P(verb | noun)` from the corpus created
-   in the previous steps
-5. Implement an agent using the
-   [TextWorld][TW]
-   library which iterates through the input for a given scenario,
-   samples from `verb' = P(verb | noun)`, and attempts to submit
-   `verb' noun` as a command for a given room
-6. Test the agent on the
-   [TextWorld][TW]
-   benchmark.
-
-Step Breakdown:
-
-* Patrick Faley: 2 and 4
-* Patrick Soga: 1 and 3
-* Zachary Sy: 5 and 6
-
 ## Translation
 - The RNN and Transformer models and training code can be found in `translation/`
 - The text adventure agents can be found in `agents.py` as `RNNAgent` and `TransformerAgent`
 
 ## Student-created Automated Language-based Adventure Driver (SALAD)
--
+
+- Knowledge Graph Representation: The code to create and parse the knowledge graph,
+  as well as an example of how to use `OpenIE`, can be found in `knowledgeGraph/`.
+  Specifically, `graph.py` implements the logic actually used in SALAD.
+- Heuristic-Based Slot Filler: The code for the heuristic-based slot filler can be
+  found in `heuristicSlotFilling/`. The logic is implemented in `classifier.py`,
+  with data from `target_attribute_scores.csv` and `templates.txt`.
+- Learning-Based Slot Filler: The code for the learning-based slot filler can be
+  found in `traiining/`. The `templating.py` file there contains the main logic.
+- Deep Q Network: The actual reinforcement learning code can be found in `dqn/`.
+  It has different files containing the agents, as well as some helper functions.
+- Full System: The full system can be found in the `SALAD_bowl/` directory.
+  The `salad.py` file implements training of the deep Q agent, while `integration.py`
+  contains code for integrating all of the above parts.
+- The text adventure agent can be found in `agents.py` as `salad-h` and `salad-l`,
+  where `salad-h` uses the heuristic-based slot filler and `salad-l` uses the
+  learning-based slot filler.
 
 
 [TW]: https://github.com/microsoft/textworld
