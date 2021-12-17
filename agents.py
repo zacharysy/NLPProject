@@ -111,11 +111,12 @@ class DQAgent(textworld.Agent, abc.ABC):
     def exploit(self): pass
 
     def act(self, game_state, reward=None, done=False):
-        game_state_str = ' '.join(game_state)
+        game_state_str = game_state['feedback']
         while len(self.state) > 1 and self.state[-1] == game_state_str:
             self.state.pop()
         if not bad_feedback(game_state_str):
             self.state.append(game_state_str)
+
         return self.callModel(self.state[-1].split(' '))
 
     @ abc.abstractmethod
@@ -160,11 +161,29 @@ class PA_DQAgent(DQAgent):
         self.knowledge_graph.flush()
 
     def explore(self, text):
+        # print('Entering `explore`')
         actions = generate_actions(text, self.knowledge_graph, self.slot_filler)
         action = choice(actions)
+        # print('Exiting `explore`')
         return action.split(' ')
 
+    def filter_action(self, action):
+        is_list = type(action) is list
+
+        if not is_list:
+            action = ' '.join(action.split('\n'))
+            action = action.split(' ')
+
+        if len(action) > 150:
+            action = action[:75] + action[-75:]
+
+        if not is_list:
+            action =' '.join(action)
+
+        return action
+
     def exploit(self, text, output=False, use_target_network=False):
+        # print('Entering `exploit`')
         rewards = {}
         actions = generate_actions(text, self.knowledge_graph, self.slot_filler)
 
@@ -172,22 +191,32 @@ class PA_DQAgent(DQAgent):
             if use_target_network:
                 with torch.no_grad():
                     encoding = self.target_network.encode(
-                        text, action.split(' ')).detach()
+                        text, self.filter_action(action).split(' ')).detach()
+                        # text, action.split(' ')).detach()
                     rewards[action] = self.target_network(encoding).detach()
             else:
-                encoding = self.dqn.encode(text, action.split(' '))
+                encoding = self.dqn.encode(self.filter_action(text), self.filter_action(action).split(' ')) #.split(' '))
                 rewards[action] = self.dqn(encoding)
 
         max_action = max(rewards, key=rewards.get)
         if output:
             print('exploiting...', max_action)
+        # print('Exiting `exploit`')
         return max_action.split(' ')
 
     def callModel(self, text):
+        # Clean input text
+        text = [i.strip() for i in text if len(i.strip()) > 0 and '$$' not in i]
+
         action = self.explore(text) if random() < self.epsilon else self.exploit(text, output=False)
         if self.should_train:
             self.epsilon -= (self.init_epsilon - self.end_epsilon) / \
                 self.transitions
+        # print(text)
+        # print(f'Call Input: {text}')
+        # print(f'Action: {action}')
+        # print()
+
         return action
 
     def loss_args(self, r, t: ReplayMemory):
